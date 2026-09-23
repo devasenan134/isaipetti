@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.3.3 (app `versionCode` 7)
+- **Current version:** 0.4.0 (app `versionCode` 8)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,14 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.4.0: Listen together, clips, updates and a public release
+- Listen together in any chat, with everyone in control
+- Share part of a song (a clip with a start and end point)
+- Delete chats with people who left or aren't friends anymore
+- The app checks GitHub for new versions and installs them; bug reports from Settings become GitHub issues
+- Friends type the music and friends server addresses at login; nothing private is built into the app
+- New app ID and a permanent release signing key; the project is public under GPL-3.0 with guides for Navidrome, the friends server and the app
 
 ### 0.3.3: Push notifications and smooth back gesture
 - Push notifications for chat messages, friend requests and accepted requests (Firebase). Tapping one opens the right screen
@@ -71,12 +79,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Listen together in chats | Server + App | P1 | 0.3.4 | In testing | Everyone controls. Works in groups and DMs. Needs the server update deployed |
-| Share part of a song (clip) | Server + App | P1 | 0.3.4 | In testing | Start/end picker with preview in the share sheet |
-| Delete chats you can't message in anymore | Server + App | P2 | 0.3.4 | In testing | Long-press in the chat list, or "Delete chat" in the chat |
-| Update check and install from inside the app | App | P1 | 0.3.4 | In testing | Uses GitHub Releases. Needs the public repo |
-| Bug reports from Settings to GitHub issues | Server + App | P2 | 0.3.4 | In testing | The server holds a GitHub token limited to issues |
-| Publish on GitHub with releases | Project | P1 | 0.3.4 | In progress | GPL-3.0. Friends install from GitHub Releases, with Obtainium for automatic updates |
+| _nothing right now_ | | | | | |
 
 ---
 
@@ -113,7 +116,7 @@ Features not yet agreed. Add freely.
 | # | Bug | Area | Fixed in | Notes |
 |---|---|---|---|---|
 | 1 | Going back with the Android back gesture showed both screens faded over each other (e.g. a movie page over the composer's movie grid) | App | 0.3.3 | Screens now slide in and out with a solid background, following the finger during the gesture. Switching tabs fades |
-| 2 | A slow back swipe shrank the page toward the middle over the previous screen, while a fast swipe looked fine | App | 0.3.4 | Navigation Compose's separate back-gesture animation defaulted to shrinking the page. It now uses the same animation as the back button. Screen changes also switched to the Material shared-axis transition (short sideways move with a quick fade, 0.3 seconds) |
+| 2 | A slow back swipe shrank the page toward the middle over the previous screen, while a fast swipe looked fine | App | 0.4.0 | Navigation Compose's separate back-gesture animation defaulted to shrinking the page. It now uses the same animation as the back button. Screen changes also switched to the Material shared-axis transition (short sideways move with a quick fade, 0.3 seconds) |
 
 ---
 
@@ -130,4 +133,4 @@ Small tasks, cleanup and chores.
 - [x] New Firebase project with app ID `io.github.devasenan134.isaipetti`; its files live only on the friends server
 - [x] Friends type the servers at login; no addresses or Firebase settings in the app or repo
 - [x] Restrict the Firebase API key in Google Cloud to the Android app (package name + signing certificate)
-- [ ] Create the public GitHub repository and publish 0.3.4 as the first GitHub release
+- [x] Create the public GitHub repository and publish 0.4.0 as the first GitHub release

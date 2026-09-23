@@ -7,7 +7,9 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.3.4 (unreleased)
+## 0.4.0 (2026-09-23): Listen together, clips, updates and a public release
+
+**One-time step: uninstall the old Isaipetti before installing this version.** It has a new app ID and signing key, so Android treats it as a different app. After installing, log in with your music server and friends server addresses.
 
 ### New
 - **You enter your servers at login.** The login screen asks for the **Music server** and the **Friends server** (optional when logging in, needed to sign up). No server addresses are built into the app, so it works with anyone's servers. Invites you share now include both addresses, and Settings shows the servers you're using.
