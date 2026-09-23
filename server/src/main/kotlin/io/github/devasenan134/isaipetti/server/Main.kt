@@ -58,6 +58,7 @@ fun Application.isaipettiSocial(
     pushSender: PushSender = config.firebaseKeyFile?.let { FcmSender(it) } ?: NoPush,
     issueTracker: IssueTracker? = config.githubToken?.let { token -> config.githubRepo?.let { GitHubIssues(it, token) } },
     pushConfig: PushConfig? = config.firebaseAppConfigFile?.let { PushConfig.fromGoogleServices(it) },
+    music: MusicSource? = config.navidromeDb?.let { NavidromeLibrary(it, config.featuresDb) },
 ) {
     val db = Db(config.dbPath)
     val friends = Friends(db)
@@ -78,6 +79,7 @@ fun Application.isaipettiSocial(
     }
     val bugReports = BugReports(issueTracker)
     val playlistLikes = PlaylistLikes(db)
+    val mixes = music?.let { MixService(db, it, java.time.ZoneId.of(config.timeZone)) }
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
     // Every 10 minutes, remove people whose Navidrome account is gone.
@@ -198,6 +200,29 @@ fun Application.isaipettiSocial(
                 }
             }
 
+            // Mixes, playlists and stations by Isai Pettai.
+            route("/mixes") {
+                fun mixesOn() = mixes ?: throw ApiError(HttpStatusCode.NotFound, "Mixes are off on this server")
+                get { call.respond(mixesOn().home(call.me())) }
+                get("/followed") { call.respond(mixesOn().followed(call.me())) }
+                post("/radio") { call.respond(mixesOn().radio(call.me(), call.receive())) }
+                post("/recommend") { call.respond(mixesOn().recommend(call.me(), call.receive())) }
+                get("/{id}") { call.respond(mixesOn().mix(call.me(), call.parameters["id"].orEmpty())) }
+                put("/{id}/follow") {
+                    mixesOn().follow(call.me(), call.parameters["id"].orEmpty())
+                    call.respond(HttpStatusCode.NoContent)
+                }
+                delete("/{id}/follow") {
+                    mixesOn().unfollow(call.me(), call.parameters["id"].orEmpty())
+                    call.respond(HttpStatusCode.NoContent)
+                }
+            }
+            // What the app played and skipped; mixes learn from it. Kept even when mixes are off.
+            post("/plays") {
+                mixes?.recordPlays(call.me(), call.receive<PlaysRequest>().events)
+                call.respond(HttpStatusCode.NoContent)
+            }
+
             post("/bug-reports") { call.respond(bugReports.report(call.me(), call.receive())) }
 
             route("/invites") {
@@ -252,7 +277,7 @@ fun Application.isaipettiSocial(
             }
         }
     }
-    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush || pushConfig == null) "off" else "on"}, feedback ${if (issueTracker == null) "off" else "on"}")
+    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush || pushConfig == null) "off" else "on"}, feedback ${if (issueTracker == null) "off" else "on"}, mixes ${if (mixes == null) "off" else "on"}")
 }
 
 private fun ApplicationCall.me(): UserDto = principal<UserDto>() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")

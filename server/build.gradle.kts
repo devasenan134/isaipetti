@@ -56,3 +56,15 @@ tasks.register<JavaExec>("runDev") {
     // Optional: real push notifications while testing (-PfirebaseKey=/path/to/key.json).
     (project.findProperty("firebaseKey") as String?)?.let { environment("FIREBASE_KEY_FILE", it) }
 }
+
+// Prints the mixes a person would get, from a copy of Navidrome's database and the analyzer's features.db:
+// ./gradlew previewMixes -PnavidromeDb=navidrome.db -PfeaturesDb=features.db -Puser=<navidrome username>
+tasks.register<JavaExec>("previewMixes") {
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("io.github.devasenan134.isaipetti.server.MixPreviewKt")
+    args(
+        project.findProperty("navidromeDb") ?: "navidrome.db",
+        project.findProperty("featuresDb") ?: "",
+        project.findProperty("user") ?: "",
+    )
+}

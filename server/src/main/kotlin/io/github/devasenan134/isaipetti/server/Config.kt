@@ -16,6 +16,12 @@ data class Config(
     /** "owner/repo" for bug reports, and a token that may only open issues there. Without them, bug reports are off. */
     val githubRepo: String? = null,
     val githubToken: String? = null,
+    /** Navidrome's database file (read-only), for mixes. Without it, mixes are off. */
+    val navidromeDb: String? = null,
+    /** The audio analyzer's features.db. Without it, mixes use only tags and listening (no moods). */
+    val featuresDb: String? = null,
+    /** Where "today" is for Daily Mixes and when Discover Weekly changes. */
+    val timeZone: String = "Asia/Kolkata",
 ) {
     companion object {
         fun fromEnv(): Config {
@@ -31,6 +37,9 @@ data class Config(
                 firebaseAppConfigFile = System.getenv("FIREBASE_APP_CONFIG")?.takeIf { File(it).isFile },
                 githubRepo = System.getenv("GITHUB_REPO")?.takeIf { it.isNotBlank() },
                 githubToken = System.getenv("GITHUB_TOKEN")?.takeIf { it.isNotBlank() },
+                navidromeDb = System.getenv("NAVIDROME_DB")?.takeIf { File(it).isFile },
+                featuresDb = System.getenv("FEATURES_DB")?.takeIf { it.isNotBlank() },
+                timeZone = env("MIX_TIMEZONE", "Asia/Kolkata"),
             )
         }
     }

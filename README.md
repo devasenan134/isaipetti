@@ -6,6 +6,7 @@ A music app for your own music, shared with your friends. Isaipetti streams from
 - **Friends:** invite codes, friend requests, live presence and now-playing, direct messages and group chats, push notifications
 - **Sharing:** send a song, or pick a start and end point and send just that part
 - **Listen together:** everyone in a chat's session hears the same music, and anyone can play, pause, skip or change the queue
+- **Mixes by Isai Pettai:** Daily Mixes, Discover Weekly, On Repeat, mood, composer, singer and decade mixes, endless stations and "Recommended songs" for your playlists, made from your listening and (optionally) how the songs sound. They update themselves as you listen and as music is added
 - **Staying current:** the app finds new releases by itself, and bugs and feature ideas can be sent from Settings
 
 ## The three parts
@@ -13,14 +14,17 @@ A music app for your own music, shared with your friends. Isaipetti streams from
 | | Part | What it is | Guide |
 |---|---|---|---|
 | 1 | **Navidrome** | The music server: your library, streaming, lyrics, accounts | [navidrome/](navidrome/README.md) |
-| 2 | **isaipetti-social** | The friends server: invites, friends, chat, listen together, notifications | [server/](server/README.md) |
+| 2 | **isaipetti-social** | The friends server: invites, friends, chat, listen together, notifications, mixes | [server/](server/README.md) |
+| 2b | **Audio analyzer** (optional) | Listens to every song once so mixes know moods and sound-alikes | [analyzer/](analyzer/README.md) |
 | 3 | **Android app** | What you and your friends install | [android/](android/README.md) |
 
 ```
 Isaipetti app ── music, lyrics, playlists ──▶ Navidrome            (Part 1)
       │
-      └──────── friends, chat, listen together ──▶ isaipetti-social  (Part 2)
-                                                     └─ checks logins with Navidrome
+      └──────── friends, chat, listen together, mixes ──▶ isaipetti-social  (Part 2)
+                                                     ├─ checks logins with Navidrome
+                                                     └─ reads Navidrome's database and the
+                                                        audio analyzer's features.db  (Part 2b)
 ```
 
 Run Part 1 (and optionally Part 2) on a machine at home with Docker, give each an HTTPS address, and send those addresses to friends. They install the app (Part 3) and type them in at login. Nothing about your servers is built into the app or stored in this repository.

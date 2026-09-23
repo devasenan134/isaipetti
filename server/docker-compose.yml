@@ -9,9 +9,14 @@ services:
       - DB_PATH=/data/isaipetti-social.db
       - FIREBASE_KEY_FILE=/secrets/firebase-key.json
       - FIREBASE_APP_CONFIG=/secrets/google-services.json
+      - NAVIDROME_DB=/navidrome/navidrome.db
+      - FEATURES_DB=/features/features.db
     volumes:
       - ./data:/data
       - ./secrets:/secrets:ro  # optional Firebase files for push notifications; never commit them
+      # Optional, for mixes by Isai Pettai: Navidrome's data folder and the audio analyzer's (both read-only).
+      - ${NAVIDROME_DATA:-./no-navidrome-data}:/navidrome:ro
+      - ${FEATURES_FOLDER:-./no-features}:/features:ro
     ports:
       - "127.0.0.1:8095:8095"  # only this machine; put HTTPS (reverse proxy or tunnel) in front
     extra_hosts:

@@ -1,0 +1,200 @@
+package io.github.devasenan134.isaipetti.server
+
+import io.ktor.http.HttpStatusCode
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.random.Random
+
+@Serializable data class HomeMixes(val sections: List<MixSection>, val analyzedSongs: Int, val totalSongs: Int)
+@Serializable data class RadioRequest(val id: String, val exclude: List<String> = emptyList(), val count: Int = 25)
+@Serializable data class RecommendRequest(val songIds: List<String>, val count: Int = 10, val page: Int = 0)
+
+/** One song the app played: how long, and whether it was skipped. */
+@Serializable
+data class PlayEvent(
+    val songId: String,
+    val at: Long,
+    val playedMs: Long,
+    val durationMs: Long = 0,
+    val skipped: Boolean = false,
+    /** Where it was played from, e.g. "mix:daily-1" (only for statistics). */
+    val source: String? = null,
+)
+
+@Serializable data class PlaysRequest(val events: List<PlayEvent>)
+
+/**
+ * Mixes, playlists and stations by Isai Pettai, for each person.
+ *
+ * Nothing is stored as a finished list: every mix is worked out from the library and your listening
+ * whenever one of them changed. That's what keeps them up to date: a new song that fits a mix appears
+ * in it as soon as Navidrome has scanned it (and the analyzer has listened to it).
+ */
+class MixService(
+    private val db: Db,
+    private val source: MusicSource,
+    private val zone: ZoneId,
+    private val clock: () -> Long = ::now,
+) {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private class Built(val key: String, val lib: LibrarySnapshot, val maker: MixMaker, val home: List<MixSection>, val checkedAt: Long)
+    private val built = ConcurrentHashMap<Long, Built>()
+
+    suspend fun home(user: UserDto): HomeMixes {
+        val b = build(user)
+        return HomeMixes(b.home.map { s -> s.copy(mixes = s.mixes.map { it.summary() }) }, b.lib.analyzed, b.lib.songs.size)
+    }
+
+    suspend fun mix(user: UserDto, id: String): MixDto {
+        val b = build(user)
+        val mix = b.home.asSequence().flatMap { it.mixes }.firstOrNull { it.id == id } ?: b.maker.byId(id)
+        return mix ?: followedCopy(user.id, id) ?: throw ApiError(HttpStatusCode.NotFound, "This mix isn't available right now")
+    }
+
+    suspend fun radio(user: UserDto, request: RadioRequest): MixDto {
+        val count = request.count.coerceIn(1, 50)
+        return build(user).maker.radio(request.id, request.exclude.take(1000).toSet(), count, Random(clock()))
+            ?: throw ApiError(HttpStatusCode.NotFound, "This station isn't available")
+    }
+
+    suspend fun recommend(user: UserDto, request: RecommendRequest): List<MixSong> =
+        build(user).maker.recommend(request.songIds.take(2000), request.count.coerceIn(1, 50), request.page.coerceIn(0, 20))
+
+    // ---------- following mixes into Your Library ----------
+
+    suspend fun follow(user: UserDto, id: String) {
+        val mix = mix(user, id).summary()
+        db.tx {
+            val count = queryOne("SELECT count(*) FROM followed_mixes WHERE user_id = ?", user.id) { it.getInt(1) } ?: 0
+            if (count >= 200) throw ApiError(HttpStatusCode.BadRequest, "You can save up to 200 mixes")
+            update(
+                """INSERT INTO followed_mixes (user_id, mix_id, mix_json, followed_at) VALUES (?, ?, ?, ?)
+                   ON CONFLICT (user_id, mix_id) DO UPDATE SET mix_json = excluded.mix_json""",
+                user.id, id, json.encodeToString(MixDto.serializer(), mix), clock(),
+            )
+        }
+    }
+
+    suspend fun unfollow(user: UserDto, id: String) = db.tx {
+        update("DELETE FROM followed_mixes WHERE user_id = ? AND mix_id = ?", user.id, id)
+    }
+
+    /** Saved mixes, newest first, as they are now (a mix that no longer exists keeps its last look). */
+    suspend fun followed(user: UserDto): List<MixDto> {
+        val saved = db.tx {
+            query("SELECT mix_id, mix_json FROM followed_mixes WHERE user_id = ? ORDER BY followed_at DESC", user.id) {
+                it.getString(1) to it.getString(2)
+            }
+        }
+        if (saved.isEmpty()) return emptyList()
+        val b = build(user)
+        val current = b.home.flatMap { it.mixes }.associateBy { it.id }
+        return saved.map { (id, stored) ->
+            (current[id] ?: runCatching { b.maker.byId(id) }.getOrNull())?.summary()
+                ?: json.decodeFromString(MixDto.serializer(), stored).copy(songCount = 0)
+        }
+    }
+
+    private suspend fun followedCopy(userId: Long, id: String): MixDto? = db.tx {
+        queryOne("SELECT mix_json FROM followed_mixes WHERE user_id = ? AND mix_id = ?", userId, id) { it.getString(1) }
+    }?.let { json.decodeFromString(MixDto.serializer(), it).copy(songCount = 0) }
+
+    // ---------- plays and skips ----------
+
+    suspend fun recordPlays(user: UserDto, events: List<PlayEvent>) {
+        if (events.size > 500) throw ApiError(HttpStatusCode.BadRequest, "Too many plays at once")
+        val t = clock()
+        db.tx {
+            for (e in events) {
+                if (e.songId.isBlank() || e.songId.length > 100 || e.playedMs < 0) continue
+                update(
+                    "INSERT INTO plays (user_id, song_id, at, played_ms, duration_ms, skipped, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    user.id, e.songId, e.at.coerceIn(t - 30 * MixMaker.DAY, t), e.playedMs, e.durationMs, if (e.skipped) 1 else 0, e.source?.take(100),
+                )
+            }
+            // A year of plays is plenty.
+            update("DELETE FROM plays WHERE user_id = ? AND at < ?", user.id, t - 365 * MixMaker.DAY)
+        }
+    }
+
+    // ---------- building ----------
+
+    /** Everything for [user], worked out again only when the library, their listening, their friends' or the day changed. */
+    private suspend fun build(user: UserDto): Built {
+        val cached = built[user.id]
+        if (cached != null && clock() - cached.checkedAt < RECHECK_MS) return cached
+        val lib = source.snapshot() ?: throw ApiError(HttpStatusCode.ServiceUnavailable, "Mixes aren't available: the server can't read the library")
+        val navidromeId = navidromeId(user)
+        val history = navidromeId?.let { source.history(it, lib) } ?: History.EMPTY
+        val skips = skips(user.id, lib)
+        val friends = friendsPlays(user.id, lib)
+        val today = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(clock()), zone)
+        val key = listOf(lib.version, history.version, skips.hashCode(), friends.hashCode(), today).joinToString("|")
+        if (cached != null && cached.key == key) return Built(key, cached.lib, cached.maker, cached.home, clock()).also { built[user.id] = it }
+
+        val popularity = source.popularity(lib)
+        val maker = MixMaker(lib, history, skips, popularity, friends, personSeed = user.id * 1_000_003L, today = today, now = clock())
+        val home = remember(user.id, maker.home())
+        return Built(key, lib, maker, home, clock()).also { built[user.id] = it }
+    }
+
+    /** Sets each mix's [MixDto.updatedAt] to when its songs last changed (kept in the database). */
+    private suspend fun remember(userId: Long, sections: List<MixSection>): List<MixSection> {
+        val t = clock()
+        val times = db.tx {
+            val stored = query("SELECT mix_id, songs_hash, updated_at FROM mix_state WHERE user_id = ?", userId) {
+                it.getString(1) to (it.getInt(2) to it.getLong(3))
+            }.toMap()
+            sections.flatMap { it.mixes }.associate { mix ->
+                val hash = mix.songs.map { it.id }.hashCode()
+                val previous = stored[mix.id]
+                val time = if (previous != null && previous.first == hash) previous.second else t
+                if (previous == null || previous.first != hash) {
+                    update(
+                        "INSERT OR REPLACE INTO mix_state (user_id, mix_id, songs_hash, updated_at) VALUES (?, ?, ?, ?)",
+                        userId, mix.id, hash, time,
+                    )
+                }
+                mix.id to time
+            }
+        }
+        return sections.map { s -> s.copy(mixes = s.mixes.map { m -> if (m.endless) m else m.copy(updatedAt = times[m.id] ?: t) }) }
+    }
+
+    private suspend fun navidromeId(user: UserDto): String? =
+        db.tx { queryOne("SELECT navidrome_id FROM users WHERE id = ?", user.id) { it.getString(1) } }
+            ?: source.navidromeUserId(user.username)
+
+    private suspend fun skips(userId: Long, lib: LibrarySnapshot): Map<Int, SkipStats> = db.tx {
+        query(
+            "SELECT song_id, sum(skipped), sum(1 - skipped) FROM plays WHERE user_id = ? AND at > ? GROUP BY song_id",
+            userId, clock() - 180 * MixMaker.DAY,
+        ) { rs -> lib.index[rs.getString(1)]?.let { it to SkipStats(rs.getInt(2), rs.getInt(3)) } }.filterNotNull().toMap()
+    }
+
+    /** What this person's friends played in the last 30 days (from Navidrome's play log). */
+    private suspend fun friendsPlays(userId: Long, lib: LibrarySnapshot): Map<Int, Int> {
+        val friendIds = db.tx {
+            query(
+                "SELECT u.navidrome_id, u.username FROM friendships f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND u.deleted_at IS NULL",
+                userId,
+            ) { it.getString(1) to it.getString(2) }
+        }
+        val since = clock() - 30 * MixMaker.DAY
+        val counts = mutableMapOf<Int, Int>()
+        for ((navidromeId, username) in friendIds) {
+            val id = navidromeId ?: source.navidromeUserId(username) ?: continue
+            source.history(id, lib).plays.filter { it.second > since }.forEach { counts.merge(it.first, 1, Int::plus) }
+        }
+        return counts
+    }
+
+    private companion object {
+        /** Checking whether anything changed takes a few small queries; don't do it more than this often. */
+        const val RECHECK_MS = 30_000L
+    }
+}
