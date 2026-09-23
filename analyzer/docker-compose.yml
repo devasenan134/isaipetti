@@ -1,0 +1,18 @@
+# The audio analyzer (optional): lets the friends server make mood mixes and sound-alike radio.
+services:
+  isaipetti-analyzer:
+    build: .
+    container_name: isaipetti-analyzer
+    env_file: .env
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - NAVIDROME_DB=/navidrome/navidrome.db
+      - MUSIC_DIR=/music
+      - FEATURES_DB=/data/features.db
+    volumes:
+      - ${NAVIDROME_DATA}:/navidrome:ro   # Navidrome's data folder, to see which songs exist
+      - ${MUSIC_FOLDER}:/music:ro         # the same music folder Navidrome uses
+      - ${FEATURES_FOLDER}:/data          # features.db (shared with the friends server) and the model
+    cpus: ${ANALYZER_CPUS:-4}             # leaves room for Navidrome and everything else
+    mem_limit: 3g
+    restart: unless-stopped

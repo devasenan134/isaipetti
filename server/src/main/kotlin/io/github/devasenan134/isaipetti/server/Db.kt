@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -138,6 +138,36 @@ class Db(path: String) {
                 playlist_json TEXT NOT NULL,
                 liked_at INTEGER NOT NULL,
                 PRIMARY KEY (user_id, playlist_id)
+            )
+        """.trimIndent()
+
+        // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,
+        // and when each mix's songs last changed.
+        val SCHEMA_V7 = """
+            CREATE TABLE plays (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                song_id TEXT NOT NULL,
+                at INTEGER NOT NULL,
+                played_ms INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                skipped INTEGER NOT NULL,
+                source TEXT
+            );
+            CREATE INDEX plays_by_user ON plays(user_id, at);
+            CREATE TABLE followed_mixes (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                mix_id TEXT NOT NULL,
+                mix_json TEXT NOT NULL,
+                followed_at INTEGER NOT NULL,
+                PRIMARY KEY (user_id, mix_id)
+            );
+            CREATE TABLE mix_state (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                mix_id TEXT NOT NULL,
+                songs_hash INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (user_id, mix_id)
             )
         """.trimIndent()
     }

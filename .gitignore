@@ -18,3 +18,6 @@ local.properties
 google-services.json
 *firebase-adminsdk*.json
 firebase-key.json
+/server/no-navidrome-data/
+/server/no-features/
+/analyzer/data/

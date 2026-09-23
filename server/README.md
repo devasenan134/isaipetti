@@ -44,6 +44,21 @@ Notifications go through Firebase Cloud Messaging, with **your own** Firebase pr
    The log line now says `push on`.
 5. Recommended: in the [Google Cloud console](https://console.cloud.google.com/apis/credentials), open the project's **Android key (auto created by Firebase)** and under *Application restrictions* allow only your app's package name and SHA-1.
 
+## Mixes by Isai Pettai (optional)
+
+The server makes mixes, playlists and stations for everyone, with **Isai Pettai** as their author: up to six **Daily Mixes** (one per side of your taste), **Discover Weekly** (songs you haven't played), **On Repeat**, **Rewind**, **New Arrivals**, **Friends Mix**, **Top 50**, composer, singer and decade mixes, and **stations** from any song, movie, composer or singer that never run out. Your own playlists get **Recommended songs**. People can save mixes to Your Library, where they keep updating, or save a copy as a normal playlist.
+
+It works them out from Navidrome's own database, which it only reads (Navidrome's API can't tell an admin what others played; its database can): the songs, and everyone's plays, likes and ratings. The app also reports skips, so songs you keep skipping stay out of your mixes. Nothing is stored as a finished list: when the library, your listening or the day changes, the mixes are worked out again, so **new songs that fit a mix appear in it by themselves**.
+
+To turn it on, set in `.env` the folder that holds Navidrome's `navidrome.db` (the `data` folder from Part 1) and restart:
+
+```bash
+NAVIDROME_DATA=/path/to/navidrome/data
+MIX_TIMEZONE=Asia/Kolkata      # when "today" starts for Daily Mixes
+```
+
+The log line then says `mixes on`. With only this, mixes group songs by composer, singers and era. For **mood mixes** and radio that follows how songs **sound**, also run the [audio analyzer](../analyzer/README.md) and set `FEATURES_FOLDER` to its data folder.
+
 ## Bug reports and feature requests (optional)
 
 The app's *Settings → Feedback* (**Report a bug** and **Suggest a feature**) creates GitHub issues through this server, labelled `bug` or `enhancement`, so the token never ships inside the app. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for just your repository with only **Issues: Read and write**, then set `GITHUB_REPO=owner/repo` and `GITHUB_TOKEN=...` in `.env` and restart; the log line then says `feedback on`. Issues don't say who sent them.
@@ -68,6 +83,8 @@ The database updates itself when a new version starts. To back it up, copy `data
 ```bash
 ./gradlew test                                        # the whole flow against a fake Navidrome
 ./gradlew runDev -PnavidromeUrl=https://music.example.com  # a local copy on port 8095
+# The mixes someone would get, from copies of navidrome.db and features.db:
+./gradlew previewMixes -PnavidromeDb=navidrome.db -PfeaturesDb=features.db -Puser=<username>
 ```
 
 Kotlin, Ktor and SQLite. Code is in `src/main/kotlin/io/github/devasenan134/isaipetti/server/`.
