@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.4.2 (app `versionCode` 10)
+- **Current version:** 0.5.0 (app `versionCode` 11)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,13 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.5.0: Your Library, likes and a new Search
+- Tabs are Home, Search, Your Library, Friends; Movies and Composers open from Search
+- Search shows browse boxes and recently played songs, movies and composers; recent searches when you tap the bar
+- Like songs, movies and playlists; Your Library with Liked songs, movies and playlists (liked playlists saved on the friends server)
+- Share sheet separates groups and people
+- Notification when friends start listening together
 
 ### 0.4.2: Leaving and deleting groups, sharing recent songs
 - Leave a group chat; the group's owner can delete it for everyone
@@ -87,11 +94,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Groups and people shown separately in the share sheet | App | P2 | 0.5.0 | Built | Group icon and members |
-| Search history and recently played on the Search page | App | P2 | 0.5.0 | Built | History kept on the phone; recent movies from Navidrome |
-| Home / Search / Your Library / Friends layout; Movies and Composers inside Search | App | P1 | 0.5.0 | Built | Browse boxes plus recently played songs, movies and composers |
-| Liked songs, liked movies and playlists; Your Library page | App | P1 | 0.5.0 | Built | Songs and movies starred in Navidrome; liked playlists saved per person on the friends server |
-| Notification when friends start listening together | Server + App | P2 | 0.5.0 | Built | Only when the app isn't open; at most once per chat every 30 minutes |
+| _nothing right now_ | | | | | |
 
 ---
 

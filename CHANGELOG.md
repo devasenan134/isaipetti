@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-09-23): Your Library, likes and a new Search
 
 ### New
 - **New layout: Home, Search, Your Library, Friends.** Movies and Composers moved into Search, like browsing in Spotify: Search shows a **Movies** box and a **Composers** box, then your **recently played songs, movies and composers** in separate rows. Tapping the search bar shows your recent searches; typing shows results. Back closes the search bar first.
