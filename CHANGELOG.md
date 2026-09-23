@@ -7,6 +7,16 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.5.1 (unreleased)
+
+### New
+- **Playlists in Search.** Next to Movies and Composers there's a **Playlists** box that opens every playlist on the music server. Below, **Recently played playlists** shows the playlists you last played from (remembered on your phone when you press Play or Shuffle, or tap a song, on a playlist).
+
+### Fixed
+- **Your Library** showed every playlist you own, which could be all of them. It now shows only playlists you liked.
+
+---
+
 ## 0.5.0 (2026-09-23): Your Library, likes and a new Search
 
 ### New
