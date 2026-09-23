@@ -56,6 +56,20 @@ class Accounts(private val db: Db, private val navidrome: Navidrome, private val
         return session
     }
 
+    suspend fun rename(userId: Long, displayName: String): UserDto {
+        val name = displayName.trim()
+        if (name.isEmpty() || name.length > 40) throw ApiError(HttpStatusCode.BadRequest, "Names are 1–40 characters")
+        return db.tx {
+            update("UPDATE users SET display_name = ? WHERE id = ?", name, userId)
+            queryOne("SELECT * FROM users WHERE id = ?", userId) { it.toUser() }!!
+        }
+    }
+
+    /** Ends every session of this user except [currentToken] (used after a password change). */
+    suspend fun logoutOthers(userId: Long, currentToken: String): Int = db.tx {
+        update("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", userId, hash(currentToken))
+    }
+
     suspend fun logout(token: String) = db.tx { update("DELETE FROM sessions WHERE token_hash = ?", hash(token)) }
 
     /** The user a session token belongs to, or null if it's unknown. */

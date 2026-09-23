@@ -7,6 +7,7 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -104,6 +105,14 @@ class FlowTest {
         client.postJson("/conversations/${group.id}/messages", SendMessageRequest("8pm?"), bob.sessionToken)
         assertEquals(listOf("8pm?"), client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", carol).map { it.body })
         assertEquals(HttpStatusCode.Forbidden, client.postJson("/conversations/dm", NewDmRequest(bob.user.id), carol.sessionToken).status)
+
+        // Renaming shows up for friends; logging out other devices keeps only the current session.
+        client.patch("/me") { bearerAuth(alice.sessionToken); contentType(ContentType.Application.Json); setBody(RenameRequest("Alice ✨")) }
+        assertEquals("Alice ✨", client.friends(bob).first { it.user.id == alice.user.id }.user.displayName)
+        val aliceSecondPhone = client.login("alice")
+        client.postJson("/auth/logout-others", Unit, aliceSecondPhone.sessionToken)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/me") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(HttpStatusCode.OK, client.get("/me") { bearerAuth(aliceSecondPhone.sessionToken) }.status)
 
         // Bob disconnects; Alice sees him go offline.
         bobWs.close()

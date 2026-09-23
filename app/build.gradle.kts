@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.devasenan134.isaipetti"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.3.1"
 
         // Address of the companion (friends) server. For testing against a local copy:
         //   ./gradlew assembleDebug -PsocialUrl=http://10.0.2.2:8095

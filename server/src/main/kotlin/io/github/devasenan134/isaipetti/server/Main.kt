@@ -19,6 +19,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
@@ -121,8 +122,13 @@ fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome
 
         authenticate("session") {
             get("/me") { call.respond(call.me()) }
+            patch("/me") { call.respond(accounts.rename(call.me().id, call.receive<RenameRequest>().displayName)) }
+            post("/auth/logout-others") {
+                accounts.logoutOthers(call.me().id, call.bearerToken())
+                call.respond(HttpStatusCode.NoContent)
+            }
             post("/auth/logout") {
-                call.request.headers["Authorization"]?.removePrefix("Bearer ")?.let { accounts.logout(it) }
+                accounts.logout(call.bearerToken())
                 call.respond(HttpStatusCode.NoContent)
             }
 
@@ -170,6 +176,9 @@ fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome
 }
 
 private fun ApplicationCall.me(): UserDto = principal<UserDto>() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")
+
+private fun ApplicationCall.bearerToken(): String =
+    request.headers["Authorization"]?.removePrefix("Bearer ")?.trim() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")
 
 private fun ApplicationCall.longParam(name: String): Long =
     parameters[name]?.toLongOrNull() ?: throw ApiError(HttpStatusCode.BadRequest, "Bad $name")

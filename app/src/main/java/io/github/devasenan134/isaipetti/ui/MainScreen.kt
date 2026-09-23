@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -28,12 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
-import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.toRoute
@@ -48,6 +46,7 @@ import io.github.devasenan134.isaipetti.ui.player.MiniPlayer
 import io.github.devasenan134.isaipetti.ui.player.PlayerScreen
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.search.SearchScreen
+import io.github.devasenan134.isaipetti.ui.settings.SettingsScreen
 import io.github.devasenan134.isaipetti.ui.social.ChatScreen
 import io.github.devasenan134.isaipetti.ui.social.SocialScreen
 import kotlinx.serialization.Serializable
@@ -62,6 +61,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class PlaylistRoute(val id: String)
 @Serializable object SocialRoute
 @Serializable data class ChatRoute(val id: Long)
+@Serializable object SettingsRoute
 
 /** Navigation actions that screens can call. */
 class Nav(
@@ -69,6 +69,7 @@ class Nav(
     val openArtist: (String) -> Unit,
     val openPlaylist: (String) -> Unit,
     val openChat: (Long) -> Unit,
+    val openSettings: () -> Unit,
     val back: () -> Unit,
 )
 
@@ -86,11 +87,14 @@ private val tabs = listOf(
 fun MainScreen() {
     val navController = rememberNavController()
     var playerOpen by rememberSaveable { mutableStateOf(false) }
+    // Which bottom tab you're in. Screens opened from a tab (a movie, a chat, settings) stay in that tab.
+    var currentTab by rememberSaveable { mutableIntStateOf(0) }
     val nav = Nav(
         openAlbum = { navController.navigate(AlbumRoute(it)) },
         openArtist = { navController.navigate(ArtistRoute(it)) },
         openPlaylist = { navController.navigate(PlaylistRoute(it)) },
         openChat = { navController.navigate(ChatRoute(it)) },
+        openSettings = { navController.navigate(SettingsRoute) },
         back = { navController.popBackStack() },
     )
 
@@ -99,19 +103,24 @@ fun MainScreen() {
             bottomBar = {
                 Column {
                     MiniPlayer(onOpen = { playerOpen = true })
-                    val current by navController.currentBackStackEntryAsState()
                     // Unread chats + friend requests show as a badge on the Friends tab.
                     val social = LocalApp.current.social
                     val conversations by social.conversations.collectAsStateWithLifecycle()
                     val requests by social.requests.collectAsStateWithLifecycle()
                     val friendsBadge = conversations.sumOf { it.unread } + requests.incoming.size
                     NavigationBar {
-                        tabs.forEach { tab ->
-                            val selected = current?.destination?.hierarchy?.any { it.hasRoute(tab.route::class) } == true
+                        tabs.forEachIndexed { index, tab ->
+                            val selected = index == currentTab
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = {
+                                    // Tapping the tab you're on goes back to its main screen.
+                                    if (selected) {
+                                        navController.popBackStack(tab.route, inclusive = false)
+                                        return@NavigationBarItem
+                                    }
                                     // Standard bottom-tab behaviour: one copy of each tab, keep its state.
+                                    currentTab = index
                                     navController.navigate(tab.route) {
                                         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                         launchSingleTop = true
@@ -142,6 +151,7 @@ fun MainScreen() {
                 composable<PlaylistRoute> { PlaylistScreen(it.toRoute<PlaylistRoute>().id, nav) }
                 composable<SocialRoute> { SocialScreen(nav) }
                 composable<ChatRoute> { ChatScreen(it.toRoute<ChatRoute>().id, nav) }
+                composable<SettingsRoute> { SettingsScreen(nav) }
             }
         }
 

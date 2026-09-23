@@ -1,5 +1,6 @@
 package io.github.devasenan134.isaipetti.playback
 
+import android.net.Uri
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.media3.common.MediaItem
@@ -12,11 +13,20 @@ import io.github.devasenan134.isaipetti.data.SubsonicApi
 // Navidrome ids ride along in "extras" so a queued song can be shared with friends.
 
 const val EXTRA_ALBUM_ID = "albumId"
+
+/**
+ * Queue items point at "isaipetti://song/<id>" instead of a real stream URL. The player turns it
+ * into a URL with the current login only when the song starts loading (see PlaybackService), so
+ * a queue keeps working after the password (and with it the login token) changes.
+ */
+const val SONG_SCHEME = "isaipetti"
+
+fun songUri(id: String): Uri = "$SONG_SCHEME://song/$id".toUri()
 private const val EXTRA_COVER_ART = "coverArt"
 
 fun Song.toMediaItem(api: SubsonicApi): MediaItem = MediaItem.Builder()
     .setMediaId(id)
-    .setUri(api.streamUrl(id))
+    .setUri(songUri(id))
     .setMediaMetadata(
         MediaMetadata.Builder()
             .setTitle(title)

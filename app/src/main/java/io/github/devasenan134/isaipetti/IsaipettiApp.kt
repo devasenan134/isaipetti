@@ -5,6 +5,8 @@ import io.github.devasenan134.isaipetti.data.SessionStore
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.playback.PlayerConnection
 import io.github.devasenan134.isaipetti.social.Social
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -13,6 +15,8 @@ import java.util.concurrent.TimeUnit
  * screens and the playback service share (a very small hand-made "dependency container").
  */
 class IsaipettiApp : Application() {
+    private val appScope = MainScope()
+
     lateinit var session: SessionStore
         private set
     lateinit var api: SubsonicApi
@@ -29,7 +33,15 @@ class IsaipettiApp : Application() {
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
-        api = SubsonicApi(http) { session.credentials.value }
+        api = SubsonicApi(http, credentials = { session.credentials.value }, onLoginRejected = { rejected ->
+            // Only if the rejected login is still the saved one (not an old request racing a password change).
+            appScope.launch {
+                if (session.credentials.value == rejected) {
+                    player.stop()
+                    session.clear("Your password was changed. Log in again with the new one.")
+                }
+            }
+        })
         player = PlayerConnection(this, api)
         social = Social(session, http, BuildConfig.SOCIAL_URL)
     }

@@ -1,7 +1,6 @@
 package io.github.devasenan134.isaipetti.ui.home
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
@@ -12,20 +11,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,7 +34,6 @@ import io.github.devasenan134.isaipetti.ui.components.SectionTitle
 import io.github.devasenan134.isaipetti.ui.components.rememberLoader
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 private data class HomeData(
     val playlists: List<Playlist>,
@@ -54,7 +46,6 @@ private data class HomeData(
 @Composable
 fun HomeScreen(nav: Nav) {
     val app = LocalApp.current
-    val scope = rememberCoroutineScope()
     val loader = rememberLoader("home") {
         // Fetch all rows at the same time instead of one after another.
         coroutineScope {
@@ -66,23 +57,11 @@ fun HomeScreen(nav: Nav) {
             HomeData(playlists.await(), recent.await(), frequent.await(), newest.await(), random.await())
         }
     }
-    var menuOpen by remember { mutableStateOf(false) }
 
     Column {
         ScreenHeader("இசைப்பெட்டி") {
             IconButton(onClick = loader::reload) { Icon(Icons.Filled.Refresh, contentDescription = "Refresh") }
-            Box {
-                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu") }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Log out") },
-                        onClick = {
-                            menuOpen = false
-                            scope.launch { app.session.clear() }
-                        },
-                    )
-                }
-            }
+            IconButton(onClick = nav.openSettings) { Icon(Icons.Filled.Settings, contentDescription = "Settings") }
         }
         LoadableContent(loader) { data ->
             LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {

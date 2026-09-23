@@ -66,4 +66,5 @@ data class ConversationDto(
 @Serializable data class SendMessageRequest(val body: String = "", val song: SongRef? = null)
 @Serializable data class MarkReadRequest(val messageId: Long)
 @Serializable data class DeviceRequest(val token: String)
+@Serializable data class RenameRequest(val displayName: String)
 @Serializable data class ErrorResponse(val error: String)

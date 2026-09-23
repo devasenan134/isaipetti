@@ -34,6 +34,8 @@ class SocialApi(
         post("/auth/signup", SignupBody(inviteCode, username, password, displayName), authenticated = false)
 
     suspend fun logout() = post<Unit, Unit>("/auth/logout", Unit)
+    suspend fun logoutOthers() = post<Unit, Unit>("/auth/logout-others", Unit)
+    suspend fun rename(displayName: String): SocialUser = send("PATCH", "/me", json.encodeToString(RenameBody.serializer(), RenameBody(displayName)), SocialUser.serializer())
 
     suspend fun createInvite(): Invite = post("/invites", Unit)
     suspend fun invites(): List<Invite> = get("/invites")
@@ -92,4 +94,5 @@ class SocialApi(
     @Serializable private data class GroupBody(val name: String, val memberIds: List<Long>)
     @Serializable private data class MessageBody(val body: String, val song: SongRef?)
     @Serializable private data class ReadBody(val messageId: Long)
+    @Serializable private data class RenameBody(val displayName: String)
 }

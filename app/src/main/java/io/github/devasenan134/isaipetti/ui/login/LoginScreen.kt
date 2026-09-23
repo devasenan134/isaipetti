@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -82,6 +84,8 @@ fun LoginScreen() {
         ) {
             Text("இசைப்பெட்டி", fontSize = 34.sp, color = MaterialTheme.colorScheme.primary)
             Text(if (signingUp) "Join your friends on Isaipetti" else "Isaipetti", style = MaterialTheme.typography.titleMedium)
+            val reason by app.session.logoutReason.collectAsStateWithLifecycle()
+            reason?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center) }
 
             if (signingUp) {
                 OutlinedTextField(

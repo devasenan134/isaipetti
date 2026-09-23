@@ -108,6 +108,9 @@ class PlayerConnection(private val context: Context, private val api: SubsonicAp
         }
     }
 
+    /** Stops playback and empties the queue (used when logging out). */
+    fun stop() = controller?.run { stop(); clearMediaItems() } ?: Unit
+
     fun next() = controller?.seekToNext() ?: Unit
     fun previous() = controller?.seekToPrevious() ?: Unit
     fun seekTo(positionMs: Long) = controller?.seekTo(positionMs) ?: Unit

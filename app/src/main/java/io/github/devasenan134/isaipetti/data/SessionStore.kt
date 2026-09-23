@@ -62,6 +62,7 @@ class SessionStore(private val context: Context) {
     }
 
     suspend fun save(credentials: Credentials) {
+        _logoutReason.value = null
         context.sessionDataStore.edit {
             it[server] = credentials.server
             it[username] = credentials.username
@@ -84,8 +85,14 @@ class SessionStore(private val context: Context) {
         _social.value = session
     }
 
-    suspend fun clear() {
+    private val _logoutReason = MutableStateFlow<String?>(null)
+
+    /** Why the app logged out by itself, shown on the login screen. */
+    val logoutReason: StateFlow<String?> = _logoutReason
+
+    suspend fun clear(reason: String? = null) {
         context.sessionDataStore.edit { it.clear() }
+        _logoutReason.value = reason
         _social.value = null
         _credentials.value = null
     }

@@ -4,11 +4,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.security.MessageDigest
@@ -23,6 +27,8 @@ class SubsonicException(message: String) : Exception(message)
 class SubsonicApi(
     private val http: OkHttpClient,
     private val credentials: () -> Credentials?,
+    /** Called when Navidrome rejects the saved login (e.g. the password was changed on another device). */
+    private val onLoginRejected: (Credentials) -> Unit = {},
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -66,6 +72,52 @@ class SubsonicApi(
         get("scrobble", mapOf("id" to songId, "submission" to submission, "time" to System.currentTimeMillis()))
     }
 
+    /**
+     * Changes the password through Navidrome's own API, as the user themselves (no admin involved).
+     * Navidrome checks [current] and only lets normal users change their own password, name and email.
+     */
+    suspend fun changePassword(current: String, new: String) = withContext(Dispatchers.IO) {
+        val creds = credentials() ?: throw SubsonicException("Not logged in")
+        val jsonType = "application/json".toMediaType()
+
+        // 1. Log in to Navidrome with the current password (this is what proves it's really you).
+        val loginBody = buildJsonObject {
+            put("username", creds.username)
+            put("password", current)
+        }.toString().toRequestBody(jsonType)
+        val login = http.newCall(Request.Builder().url("${creds.server}/auth/login").post(loginBody).build()).execute().use {
+            when {
+                it.code == 401 -> throw SubsonicException("Your current password is wrong")
+                it.code == 429 -> throw SubsonicException("Too many attempts. Wait a minute and try again")
+                !it.isSuccessful -> throw SubsonicException("Navidrome returned ${it.code}")
+            }
+            json.parseToJsonElement(it.body.string()).jsonObject
+        }
+        val token = login["token"]?.jsonPrimitive?.content ?: throw SubsonicException("Navidrome didn't accept the login")
+        val id = login["id"]?.jsonPrimitive?.content ?: throw SubsonicException("Navidrome didn't return your account")
+
+        // 2. Read your own account record, so the unchanged fields are sent back as they are.
+        val record = http.newCall(
+            Request.Builder().url("${creds.server}/api/user/$id").header("X-ND-Authorization", "Bearer $token").build()
+        ).execute().use {
+            if (!it.isSuccessful) throw SubsonicException("Couldn't read your account (${it.code})")
+            json.parseToJsonElement(it.body.string()).jsonObject
+        }
+
+        // 3. Save it with the new password.
+        val update = buildJsonObject {
+            listOf("id", "userName", "name", "email").forEach { key -> record[key]?.let { put(key, it) } }
+            put("currentPassword", current)
+            put("password", new)
+        }.toString().toRequestBody(jsonType)
+        http.newCall(
+            Request.Builder().url("${creds.server}/api/user/$id").header("X-ND-Authorization", "Bearer $token").put(update).build()
+        ).execute().use {
+            if (it.code == 400) throw SubsonicException("Navidrome refused the change. Check your current password")
+            if (!it.isSuccessful) throw SubsonicException("Couldn't change the password (${it.code})")
+        }
+    }
+
     fun streamUrl(songId: String): String = url("stream", mapOf("id" to songId)).toString()
 
     fun coverUrl(coverArtId: String?, size: Int = 300): String? =
@@ -90,15 +142,18 @@ class SubsonicApi(
         params: Map<String, Any> = emptyMap(),
         credentials: Credentials? = null,
     ): JsonObject = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url(url(endpoint, params, credentials)).build()
+        val used = credentials ?: this@SubsonicApi.credentials() ?: throw SubsonicException("Not logged in")
+        val request = Request.Builder().url(url(endpoint, params, used)).build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw SubsonicException("Server returned HTTP ${response.code}")
             val body = runCatching {
                 json.parseToJsonElement(response.body.string()).jsonObject["subsonic-response"]?.jsonObject
             }.getOrNull() ?: throw SubsonicException("That doesn't look like a Navidrome server")
             if (body["status"]?.jsonPrimitive?.content != "ok") {
-                val message = body["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
-                throw SubsonicException(message ?: "Request failed")
+                val error = body["error"]?.jsonObject
+                // Error 40 = wrong username or password. Only react when using the saved login.
+                if (credentials == null && error?.get("code")?.jsonPrimitive?.content == "40") onLoginRejected(used)
+                throw SubsonicException(error?.get("message")?.jsonPrimitive?.content ?: "Request failed")
             }
             body
         }
