@@ -7,6 +7,32 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.0 (2026-09-23): Mixes by Isai Pettai (Phase 4)
+
+### New
+- **Made for you, like Spotify.** Home has new rows of mixes, playlists and stations made for you by **Isai Pettai**, the app's own DJ. Everything it makes says **By Isai Pettai** and has its own artwork: the mix's colour, covers from its movies, its name and the Isai Pettai mark.
+  - **Daily Mix 1–6:** one for each side of your taste (say, 80s Ilaiyaraaja, Anirudh-era songs, A.R. Rahman melodies). Songs you love mixed with new ones that sound like them. A fresh selection every day.
+  - **Discover Weekly:** 30 songs you've never played, picked for how you listen. New every Monday.
+  - **On Repeat** (what you've played most this month), **Rewind** (old favourites you haven't played lately), **New Arrivals** (songs just added to the library, the ones that suit you first), **Friends Mix** (what your friends are playing) and **Top 50** (the most played on the server).
+  - **Moods and vibes:** Chill, Romance, Feel Good, Party, Kuthu, Sad Songs, Melody, Workout, Devotional, Carnatic Touch, Focus, Sleep and Retro. They come from listening to every song, not from tags, and lean towards what you like. The moods that suit you most come first.
+  - **Your composers, Singers you love and Through the decades:** a mix for each, with their best songs and music like theirs.
+- **Stations that never end.** Start a radio from any song (⋮ → **Start song radio**, or the radio button in the player), a movie, a composer or a singer (**Radio** on their pages). It plays songs that sound like it and adds more as it goes, even with the screen off.
+- **Mixes keep themselves up to date.** When songs are added to the library, the ones that fit a mix join it on their own; mixes also follow what you play, like and skip. Each mix's page says when it last changed.
+- **Save mixes to Your Library** with ♡. They keep updating there. Or **⋮ → Save a copy as a playlist** to keep today's songs as a normal playlist ("By Isai Pettai" in its description).
+- **Recommended songs** under your own playlists: songs that would fit, each with a **+** to add it. **Refresh** shows others.
+- Mixes and stations you play show up in **Recently played**.
+
+### Improved
+- **Skips teach the mixes.** The app tells the friends server when you skip a song in its first 30 seconds. Songs you keep skipping stay out of your mixes. (Nothing is reported while listening together or for shared clips.)
+
+### Server
+- The friends server makes the mixes. It reads Navidrome's database (read-only) for the library and everyone's plays and likes. Turn it on with `NAVIDROME_DATA` in `.env`; see [server/README.md](server/README.md#mixes-by-isai-pettai-optional).
+- New, optional **audio analyzer** ([analyzer/](analyzer/README.md)): listens to every song once with the CLAP music model to find moods and sound-alikes, then only new songs. Without it, mixes use composers, singers, years and listening.
+- Lyricists credited as artists in some files no longer count as singers for mixes.
+- `./gradlew previewMixes` prints the mixes someone would get, from copies of the databases.
+
+---
+
 ## 0.5.4 (2026-09-23): Recently played, resume everywhere and fixes
 
 ### New

@@ -3,8 +3,9 @@
 The one place for what has shipped, what is being built, what is planned, and what needs fixing.
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
-- **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.5.4 (app `versionCode` 15)
+- **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat, sign-up and mixes
+- **Analyzer:** optional audio analyzer in `analyzer/` (Python + CLAP) for moods and sound-alikes
+- **Current version:** 0.6.0 (app `versionCode` 16)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +29,13 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.6.0: Mixes by Isai Pettai (Phase 4)
+- Made for you: Daily Mix 1–6, Discover Weekly, On Repeat, Rewind, New Arrivals, Friends Mix, Top 50
+- Mood, composer, singer and decade mixes; endless stations from any song, movie, composer or singer
+- Mixes update themselves when music is added and as you listen; skips keep songs out
+- Save mixes to Your Library, or a copy as a playlist; Recommended songs under your playlists
+- Server reads Navidrome's database for listening; optional audio analyzer (CLAP) for moods and sound-alikes
 
 ### 0.5.4: Recently played, resume everywhere and fixes
 - Recently played on Home shows songs, movies, playlists, composers, artists and Liked songs (round tiles for composers and artists)
@@ -143,6 +151,9 @@ Features not yet agreed. Add freely.
 | Option to like an entire albums or playlist | | want to have the liked songs section and albums, playlist listed on a new separate page like Your library |
 | Lets move the movies and Composers page on the app to search section like in spotify | | |
 | After moving those pages, lets have the Your library down there, so it will be Home, Search, your library, Friends | | |
+| "Not interested" / hide a song from mixes, and a "Don't play this" action in the player | Mixes | Skips already do this slowly |
+| Mood mixes tuned for Tamil film music: a small labelled set to check and improve the descriptions | Analyzer | CLAP was trained mostly on Western music |
+| Search mixes and moods ("sad 90s Ilaiyaraaja") | Mixes | Descriptions can be matched against any typed text |
 
 ---
 
@@ -173,6 +184,7 @@ Small tasks, cleanup and chores.
 - [x] Deploy the server update (listen together, clips, deleting chats, push settings)
 - [x] Create a release signing key (kept outside the repository)
 - [ ] Back up the release key and its password somewhere safe, e.g. Vaultwarden
+- [ ] Watch the analyzer's first full run and check the mood mixes with real listening (`./gradlew previewMixes`)
 - [ ] Create a fine-grained GitHub token (this repo only, Issues: read and write) and put it in the server's `.env` as `GITHUB_TOKEN`
 - [x] Remove `google-services.json`, the server addresses and the personal email from the git history
 - [x] New Firebase project with app ID `io.github.devasenan134.isaipetti`; its files live only on the friends server
