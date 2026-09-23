@@ -13,3 +13,6 @@ server/.env
 server/data/
 server/firebase-key.json
 *firebase-adminsdk*.json
+
+# Firebase app config: kept private, see README
+app/google-services.json

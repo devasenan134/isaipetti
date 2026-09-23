@@ -50,7 +50,8 @@ tasks.test {
 tasks.register<JavaExec>("runDev") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("io.github.devasenan134.isaipetti.server.DevServerKt")
-    environment("NAVIDROME_URL", "https://music.example.com")
+    // Your Navidrome server: -PnavidromeUrl=https://... or ISAIPETTI_SERVER_URL in ~/.gradle/gradle.properties.
+    environment("NAVIDROME_URL", (project.findProperty("navidromeUrl") ?: project.findProperty("ISAIPETTI_SERVER_URL") ?: "http://localhost:4533") as String)
     environment("DB_PATH", layout.buildDirectory.file("dev/isaipetti-social.db").get().asFile.path)
     // Optional: real push notifications while testing (-PfirebaseKey=/path/to/key.json).
     (project.findProperty("firebaseKey") as String?)?.let { environment("FIREBASE_KEY_FILE", it) }

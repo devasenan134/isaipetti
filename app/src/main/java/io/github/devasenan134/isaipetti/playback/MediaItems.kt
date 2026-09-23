@@ -24,7 +24,10 @@ const val SONG_SCHEME = "isaipetti"
 fun songUri(id: String): Uri = "$SONG_SCHEME://song/$id".toUri()
 private const val EXTRA_COVER_ART = "coverArt"
 
-fun Song.toMediaItem(api: SubsonicApi): MediaItem = MediaItem.Builder()
+/** For a shared clip: where to pause (ms). The player starts the song at the clip's start. */
+const val EXTRA_CLIP_END_MS = "clipEndMs"
+
+fun Song.toMediaItem(api: SubsonicApi, clipEndMs: Long? = null): MediaItem = MediaItem.Builder()
     .setMediaId(id)
     .setUri(songUri(id))
     .setMediaMetadata(
@@ -36,7 +39,7 @@ fun Song.toMediaItem(api: SubsonicApi): MediaItem = MediaItem.Builder()
             .setDurationMs(duration * 1000L)
             .setIsPlayable(true)
             .setIsBrowsable(false)
-            .setExtras(bundleOf(EXTRA_ALBUM_ID to albumId, EXTRA_COVER_ART to coverArt))
+            .setExtras(bundleOf(EXTRA_ALBUM_ID to albumId, EXTRA_COVER_ART to coverArt).apply { clipEndMs?.let { putLong(EXTRA_CLIP_END_MS, it) } })
             .build()
     )
     .build()

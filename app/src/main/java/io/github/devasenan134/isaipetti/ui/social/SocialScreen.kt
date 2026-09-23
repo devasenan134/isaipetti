@@ -3,6 +3,7 @@ package io.github.devasenan134.isaipetti.ui.social
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -146,6 +147,10 @@ private fun ChatList(
     onNewGroup: () -> Unit,
 ) {
     val onlineIds = friends.filter { it.online }.map { it.user.id }.toSet()
+    // Chats you can't message in anymore (they left, or aren't your friend) can be deleted with a long press.
+    var deleting by remember { mutableStateOf<Conversation?>(null) }
+    val sessions by LocalApp.current.social.listen.sessions.collectAsStateWithLifecycle()
+    deleting?.let { c -> DeleteChatDialog(c.title(me), c.id, onDone = { deleting = null }) }
     LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
         item {
             OutlinedButton(onClick = onNewGroup, modifier = Modifier.padding(16.dp)) {
@@ -160,7 +165,9 @@ private fun ChatList(
             val other = c.members.firstOrNull { it.id != me }
             val title = c.title(me)
             Row(
-                Modifier.fillMaxWidth().clickable { onOpen(c) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth()
+                    .combinedClickable(onLongClick = if (c.canMessage) null else ({ deleting = c }), onClick = { onOpen(c) })
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Avatar(title, if (c.isGroup) "c${c.id}" else other?.username ?: "", online = !c.isGroup && other?.id in onlineIds)
@@ -172,10 +179,15 @@ private fun ChatList(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
+                    if (sessions[c.id].orEmpty().isNotEmpty()) Text(
+                        "🎧 Listening together",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                    ) else Text(
                         c.lastMessage?.let { m ->
                             val who = if (m.sender.id == me) "You: " else if (c.isGroup) "${m.sender.displayName}: " else ""
-                            who + (m.song?.let { "♪ ${it.title}" + if (m.body.isNotBlank()) " – ${m.body}" else "" } ?: m.body)
+                            who + (m.song?.let { "♪ ${it.title}${it.clipLabel}" + if (m.body.isNotBlank()) " – ${m.body}" else "" } ?: m.body)
                         } ?: if (c.isGroup) c.members.joinToString { it.displayName } else "Say hi 👋",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -425,5 +437,32 @@ private fun NewGroupDialog(friends: List<Friend>, onDismiss: () -> Unit, onCreat
             }) { Text("Create") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Confirms deleting a chat you can't message in anymore, then deletes it. */
+@Composable
+fun DeleteChatDialog(title: String, conversationId: Long, onDone: () -> Unit, onDeleted: () -> Unit = {}) {
+    val social = LocalApp.current.social
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text("Delete the chat \"$title\"?") },
+        text = { Text("The chat and its messages are removed from your phone. This can't be undone.") },
+        confirmButton = {
+            Button(onClick = {
+                scope.launch {
+                    try {
+                        social.deleteConversation(conversationId)
+                        onDeleted()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, e.message ?: "Couldn't delete", Toast.LENGTH_SHORT).show()
+                    }
+                    onDone()
+                }
+            }) { Text("Delete") }
+        },
+        dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
     )
 }

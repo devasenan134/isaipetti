@@ -8,7 +8,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SocialUser(val id: Long, val username: String, val displayName: String)
 
-/** A song as shared between friends. Navidrome ids are the same for everyone, so anyone can play it. */
+/**
+ * A song as shared between friends. Navidrome ids are the same for everyone, so anyone can play it.
+ * A shared clip also has [clipStartMs] and [clipEndMs]: only that part of the song is meant to be heard.
+ */
 @Serializable
 data class SongRef(
     val id: String,
@@ -18,17 +21,28 @@ data class SongRef(
     val albumId: String? = null,
     val coverArt: String? = null,
     val duration: Int = 0,
+    val clipStartMs: Long? = null,
+    val clipEndMs: Long? = null,
 ) {
+    val isClip get() = clipStartMs != null && clipEndMs != null
+
+    /** " (1:05–1:35)" for a clip, "" for a whole song. */
+    val clipLabel get() = if (isClip) " (${clockTime(clipStartMs!!)}–${clockTime(clipEndMs!!)})" else ""
+
     fun toSong() = Song(id = id, title = title, album = album, albumId = albumId, artist = artist, duration = duration, coverArt = coverArt)
 }
 
 fun Song.toRef() = SongRef(id, title, artist, album, albumId, coverArt, duration)
+
+/** "1:05" */
+fun clockTime(ms: Long): String = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
 
 @Serializable data class SessionResponse(val sessionToken: String, val user: SocialUser)
 @Serializable data class Invite(val code: String, val expiresAt: Long, val usedBy: SocialUser? = null)
 @Serializable data class Friend(val user: SocialUser, val online: Boolean, val nowPlaying: SongRef? = null)
 @Serializable data class FriendRequests(val incoming: List<SocialUser> = emptyList(), val outgoing: List<SocialUser> = emptyList())
 @Serializable data class AddFriendResponse(val status: String)
+@Serializable data class BugReport(val number: Long, val url: String)
 
 @Serializable
 data class ChatMessage(
@@ -48,6 +62,10 @@ data class Conversation(
     val members: List<SocialUser>,
     val lastMessage: ChatMessage? = null,
     val unread: Int = 0,
+    /** False for a DM with someone who left or is no longer a friend, or a group everyone else left. Such chats can be deleted. */
+    val canMessage: Boolean = true,
+    /** Who is listening together in this chat right now. */
+    val listeners: List<Long> = emptyList(),
 ) {
     val isGroup get() = kind == "group"
 
@@ -74,6 +92,28 @@ data class FriendAddedEvent(val friend: Friend) : SocialEvent
 @Serializable @SerialName("friendRemoved")
 data class FriendRemovedEvent(val userId: Long) : SocialEvent
 
+/**
+ * What a listen-together session is playing: a shared queue, which song in it, where in the song
+ * (at [updatedAt], server time) and whether it's playing. Updates leave out [queue] when it didn't change.
+ */
+@Serializable
+data class ListenState(
+    val queue: List<SongRef>? = null,
+    val queueId: String,
+    val index: Int,
+    val positionMs: Long,
+    val playing: Boolean,
+    val updatedAt: Long = 0,
+)
+
+/** Who is listening together in a chat; an empty list means the session ended. */
+@Serializable @SerialName("listenSession")
+data class ListenSessionEvent(val conversationId: Long, val listeners: List<Long>) : SocialEvent
+
+/** The session's playback changed (by [by]), or we just joined. */
+@Serializable @SerialName("listenState")
+data class ListenStateEvent(val conversationId: Long, val state: ListenState, val by: Long, val serverTime: Long) : SocialEvent
+
 /** What the app sends over the WebSocket. */
 @Serializable
 sealed interface ClientEvent
@@ -84,3 +124,15 @@ data class NowPlayingUpdate(val song: SongRef? = null) : ClientEvent
 /** Tells the server whether the app is on screen, so it knows when to send push notifications instead. */
 @Serializable @SerialName("appState")
 data class AppStateUpdate(val visible: Boolean) : ClientEvent
+
+@Serializable @SerialName("listenStart")
+data class ListenStart(val conversationId: Long, val state: ListenState) : ClientEvent
+
+@Serializable @SerialName("listenJoin")
+data class ListenJoin(val conversationId: Long) : ClientEvent
+
+@Serializable @SerialName("listenLeave")
+data class ListenLeave(val conversationId: Long) : ClientEvent
+
+@Serializable @SerialName("listenUpdate")
+data class ListenUpdate(val conversationId: Long, val state: ListenState) : ClientEvent

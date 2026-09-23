@@ -11,6 +11,9 @@ data class Config(
     val navidromeAdminPassword: String,
     /** Firebase service-account key (JSON file). Without it, push notifications are off. */
     val firebaseKeyFile: String? = null,
+    /** "owner/repo" for bug reports, and a token that may only open issues there. Without them, bug reports are off. */
+    val githubRepo: String? = null,
+    val githubToken: String? = null,
 ) {
     companion object {
         fun fromEnv(): Config {
@@ -23,6 +26,8 @@ data class Config(
                 navidromeAdminUser = env("NAVIDROME_ADMIN_USER", ""),
                 navidromeAdminPassword = env("NAVIDROME_ADMIN_PASSWORD", ""),
                 firebaseKeyFile = System.getenv("FIREBASE_KEY_FILE")?.takeIf { File(it).exists() },
+                githubRepo = System.getenv("GITHUB_REPO")?.takeIf { it.isNotBlank() },
+                githubToken = System.getenv("GITHUB_TOKEN")?.takeIf { it.isNotBlank() },
             )
         }
     }

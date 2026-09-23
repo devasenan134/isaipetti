@@ -81,6 +81,10 @@ fun SettingsScreen(nav: Nav) {
 
             ChangePasswordCard()
 
+            UpdatesCard()
+
+            BugReportCard(enabled = social != null)
+
             OutlinedButton(
                 onClick = { confirmLogout = true },
                 modifier = Modifier.fillMaxWidth(),

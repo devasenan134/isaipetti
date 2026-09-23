@@ -87,6 +87,16 @@ class PlayerConnection(private val context: Context, private val api: SubsonicAp
         c.play()
     }
 
+    /** Plays just the shared part of a song: starts at the clip's start and pauses at its end. Play again to hear the rest. */
+    fun playClip(clip: SongRef) {
+        val c = controller ?: return
+        val start = clip.clipStartMs ?: return play(listOf(clip.toSong()))
+        c.shuffleModeEnabled = false
+        c.setMediaItems(listOf(clip.toSong().toMediaItem(api, clipEndMs = clip.clipEndMs)), 0, start)
+        c.prepare()
+        c.play()
+    }
+
     fun playNext(song: Song) {
         val c = controller ?: return
         if (c.mediaItemCount == 0) return play(listOf(song))

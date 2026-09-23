@@ -69,6 +69,7 @@ import io.github.devasenan134.isaipetti.ui.player.PlayerScreen
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.search.SearchScreen
 import io.github.devasenan134.isaipetti.ui.settings.SettingsScreen
+import io.github.devasenan134.isaipetti.ui.settings.UpdateDialog
 import io.github.devasenan134.isaipetti.ui.social.ChatScreen
 import io.github.devasenan134.isaipetti.ui.social.SocialScreen
 import kotlinx.serialization.Serializable
@@ -133,6 +134,13 @@ fun MainScreen() {
             launchSingleTop = true
         }
         if (target is PendingOpen.Chat) nav.openChat(target.conversationId)
+    }
+
+    // A newer version on GitHub: offer it once (until "Later"; it's always in Settings too).
+    val update by app.updates.available.collectAsStateWithLifecycle()
+    var updateClosed by rememberSaveable { mutableStateOf(false) }
+    update?.takeIf { !updateClosed && !app.updates.isDismissed(it) }?.let {
+        UpdateDialog(it, onDismiss = { updateClosed = true })
     }
 
     // Android 13+ needs permission to show notifications. Ask once, when the app first opens.

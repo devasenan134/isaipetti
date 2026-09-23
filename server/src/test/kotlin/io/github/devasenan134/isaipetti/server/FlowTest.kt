@@ -6,6 +6,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -129,6 +130,8 @@ class FlowTest {
         val offline = aliceWs.nextPresence(bob.user.id)
         assertEquals(false, offline.online)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/friends") { bearerAuth("nope") }.status)
+        // Oversized requests are refused before they're read.
+        assertEquals(HttpStatusCode.PayloadTooLarge, client.post("/auth/login") { setBody("x".repeat(2_000_000)) }.status)
     }
 
     @Test
@@ -171,6 +174,16 @@ class FlowTest {
         val groupNow = client.getJson<List<ConversationDto>>("/conversations", alice).first { it.id == group.id }
         assertEquals(setOf("alice", "carol"), groupNow.members.map { it.username }.toSet())
 
+        // Alice can delete the DM with Bob, but not the group that's still going.
+        assertEquals(false to true, client.getJson<List<ConversationDto>>("/conversations", alice).let { list ->
+            list.first { it.id == dm.id }.canMessage to list.first { it.id == group.id }.canMessage
+        })
+        assertEquals(HttpStatusCode.BadRequest, client.delete("/conversations/${group.id}") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/conversations/${dm.id}") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(listOf(group.id), client.getJson<List<ConversationDto>>("/conversations", alice).map { it.id })
+        // Nobody who's still around has it, so it's gone for good.
+        assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${dm.id}/messages") { bearerAuth(alice.sessionToken) }.status)
+
         // If "bob" is created again later, it's a brand-new person with no friends.
         val newBob = client.login("bob")
         assertTrue(newBob.user.id != bob.user.id)
@@ -191,6 +204,122 @@ class FlowTest {
         assertTrue(otherAlice.user.id != alice.user.id)
         assertEquals(emptyList(), client.friends(otherAlice))
         assertEquals(emptyList(), client.friends(client.login("caroline")))
+    }
+
+    @Test
+    fun `chats with ex-friends can be deleted, and song clips can be shared`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val alice = client.login("alice")
+        val bob = client.login("bob")
+        client.postJson("/friends/requests", AddFriendRequest("bob"), alice.sessionToken)
+        client.postJson("/friends/requests/${alice.user.id}/accept", Unit, bob.sessionToken)
+        val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
+
+        // A clip is a song with a start and end; nonsense ranges are refused.
+        val song = SongRef("s1", "Munbe Vaa", duration = 300)
+        val clip = song.copy(clipStartMs = 65_000, clipEndMs = 95_000)
+        client.postJson("/conversations/${dm.id}/messages", SendMessageRequest(song = clip), alice.sessionToken)
+        assertEquals(clip, client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", bob).single().song)
+        for (bad in listOf(song.copy(clipStartMs = 5_000), song.copy(clipStartMs = 9_000, clipEndMs = 9_500), song.copy(clipStartMs = 0, clipEndMs = 400_000))) {
+            assertEquals(HttpStatusCode.BadRequest, client.postJson("/conversations/${dm.id}/messages", SendMessageRequest(song = bad), alice.sessionToken).status)
+        }
+
+        // While they're friends the DM can't be deleted. Bob unfriends Alice; now she can delete it.
+        assertEquals(HttpStatusCode.BadRequest, client.delete("/conversations/${dm.id}") { bearerAuth(alice.sessionToken) }.status)
+        client.delete("/friends/${alice.user.id}") { bearerAuth(bob.sessionToken) }
+        assertEquals(false, client.getJson<List<ConversationDto>>("/conversations", alice).single().canMessage)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/conversations/${dm.id}") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", alice))
+        // Bob still has his copy.
+        assertEquals(1, client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", bob).size)
+
+        // They make up: Alice's DM comes back with the same id, but her old history stays cleared.
+        client.postJson("/friends/requests", AddFriendRequest("alice"), bob.sessionToken)
+        client.postJson("/friends/requests/${bob.user.id}/accept", Unit, alice.sessionToken)
+        assertEquals(dm.id, client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>().id)
+        assertEquals(emptyList(), client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", alice))
+        client.postJson("/conversations/${dm.id}/messages", SendMessageRequest("sorry!"), bob.sessionToken)
+        assertEquals(listOf("sorry!"), client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", alice).map { it.body })
+        assertEquals(listOf("Munbe Vaa", "sorry!"), client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", bob).map { it.song?.title ?: it.body })
+    }
+
+    @Test
+    fun `listen together`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val (alice, bob, carol) = listOf("alice", "bob", "carol").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
+        val aliceWs = client.webSocketSession("/ws?token=${alice.sessionToken}")
+        val bobWs = client.webSocketSession("/ws?token=${bob.sessionToken}")
+        val carolWs = client.webSocketSession("/ws?token=${carol.sessionToken}")
+        eventually { client.friends(alice).count { it.online } == 2 }
+        suspend fun DefaultWebSocketSession.sendEvent(event: ClientEvent) =
+            send(Frame.Text(eventJson.encodeToString(ClientEvent.serializer(), event)))
+        suspend fun DefaultWebSocketSession.next(match: (Event) -> Boolean): Event {
+            while (true) nextEvent().let { if (match(it)) return it }
+        }
+
+        // Alice starts listening together in her DM with Bob; Bob sees the session in the chat.
+        val queue = listOf(SongRef("s1", "Uyire"), SongRef("s2", "Malargale"))
+        aliceWs.sendEvent(ListenStart(dm.id, ListenState(queue, "q1", index = 0, positionMs = 12_000, playing = true)))
+        assertEquals(listOf(alice.user.id), (bobWs.next { it is ListenSessionEvent } as ListenSessionEvent).listeners)
+        assertEquals(listOf(alice.user.id), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
+
+        // Carol isn't in the chat, so she can't join. Bob joins and gets the whole queue.
+        carolWs.sendEvent(ListenJoin(dm.id))
+        bobWs.sendEvent(ListenJoin(dm.id))
+        val joined = bobWs.next { it is ListenStateEvent } as ListenStateEvent
+        assertEquals(queue to 0, joined.state.queue to joined.state.index)
+        assertEquals(setOf(alice.user.id, bob.user.id), client.getJson<List<ConversationDto>>("/conversations", alice).single().listeners.toSet())
+
+        // Bob skips to the next song; Alice is told (without the queue, which didn't change).
+        bobWs.sendEvent(ListenUpdate(dm.id, ListenState(queueId = "q1", index = 1, positionMs = 0, playing = true)))
+        val skipped = aliceWs.next { it is ListenStateEvent && it.by == bob.user.id } as ListenStateEvent
+        assertEquals(Triple(bob.user.id, 1, null), Triple(skipped.by, skipped.state.index, skipped.state.queue))
+        // An update for a queue the session doesn't have is ignored.
+        bobWs.sendEvent(ListenUpdate(dm.id, ListenState(queueId = "old", index = 5, positionMs = 0, playing = true)))
+
+        // Alice goes offline: Bob is the only listener left. When he leaves, the session ends.
+        aliceWs.close()
+        bobWs.next { it is ListenSessionEvent && it.listeners == listOf(bob.user.id) }
+        bobWs.sendEvent(ListenLeave(dm.id))
+        bobWs.next { it is ListenSessionEvent && it.listeners.isEmpty() }
+        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
+    }
+
+    @Test
+    fun `bug reports become GitHub issues`() = testApplication {
+        val opened = mutableListOf<Pair<String, String>>()
+        val tracker = object : IssueTracker {
+            override suspend fun open(title: String, body: String) =
+                BugReportResponse(opened.size + 1L, "https://github.com/x/y/issues/${opened.size + 1}").also { opened += title to body }
+        }
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome(), issueTracker = tracker) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val alice = client.login("alice")
+
+        val report = BugReportRequest("Lyrics stop scrolling", "After skipping twice the lyrics freeze.", "Isaipetti 0.3.4, Pixel 8, Android 16")
+        val created = client.postJson("/bug-reports", report, alice.sessionToken).body<BugReportResponse>()
+        assertEquals(1L, created.number)
+        val (title, body) = opened.single()
+        assertEquals("Lyrics stop scrolling", title)
+        assertTrue("After skipping twice" in body && "Pixel 8" in body)
+        // The issue is public, so it doesn't say who sent it.
+        assertTrue("alice" !in body)
+
+        // Empty reports are refused, and nobody can send more than 5 an hour.
+        assertEquals(HttpStatusCode.BadRequest, client.postJson("/bug-reports", BugReportRequest("x", "y"), alice.sessionToken).status)
+        repeat(4) { client.postJson("/bug-reports", report, alice.sessionToken) }
+        assertEquals(HttpStatusCode.TooManyRequests, client.postJson("/bug-reports", report, alice.sessionToken).status)
+        assertEquals(HttpStatusCode.Unauthorized, client.postJson("/bug-reports", report).status)
     }
 
     @Test

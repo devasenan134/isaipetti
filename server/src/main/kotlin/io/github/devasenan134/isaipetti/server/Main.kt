@@ -1,6 +1,8 @@
 package io.github.devasenan134.isaipetti.server
 
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.createApplicationPlugin
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -41,6 +43,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private val log = LoggerFactory.getLogger("isaipetti-social")
+private const val MAX_BODY_BYTES = 1024 * 1024L
 
 fun main() {
     val config = Config.fromEnv()
@@ -52,6 +55,7 @@ fun Application.isaipettiSocial(
     config: Config,
     navidrome: Navidrome = Navidrome(config),
     pushSender: PushSender = config.firebaseKeyFile?.let { FcmSender(it) } ?: NoPush,
+    issueTracker: IssueTracker? = config.githubToken?.let { token -> config.githubRepo?.let { GitHubIssues(it, token) } },
 ) {
     val db = Db(config.dbPath)
     val friends = Friends(db)
@@ -59,9 +63,12 @@ fun Application.isaipettiSocial(
     friends.hub = hub
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
     val chat = Chat(db, friends, hub)
+    val listen = ListenTogether(hub, chat::members)
+    chat.listenersOf = listen::listeners
     val push = Push(db, pushSender)
     friends.push = push
     chat.onUnseen = push::newMessage
+    val bugReports = BugReports(issueTracker)
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
     // Every 10 minutes, remove people whose Navidrome account is gone.
@@ -78,6 +85,7 @@ fun Application.isaipettiSocial(
     install(WebSockets) {
         pingPeriod = 20.seconds
         timeout = 45.seconds
+        maxFrameSize = 4L * 1024 * 1024 // a listen-together queue of a few thousand songs fits
         contentConverter = KotlinxWebsocketSerializationConverter(eventJson)
     }
     install(StatusPages) {
@@ -88,6 +96,13 @@ fun Application.isaipettiSocial(
             call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Something went wrong on the server"))
         }
     }
+    // Refuse oversized requests before reading them (nothing legitimate comes close to 1 MB).
+    install(createApplicationPlugin("BodySizeLimit") {
+        onCall { call ->
+            val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+            if (length != null && length > MAX_BODY_BYTES) call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Request is too large"))
+        }
+    })
     install(Authentication) {
         bearer("session") {
             authenticate { credential -> accounts.userForToken(credential.token) }
@@ -120,10 +135,16 @@ fun Application.isaipettiSocial(
                 for (frame in incoming) {
                     if (frame !is Frame.Text) continue
                     val event = runCatching { eventJson.decodeFromString(ClientEvent.serializer(), frame.readText()) }.getOrNull()
-                    if (event != null) hub.handle(user.id, this, event)
+                    when (event) {
+                        null -> Unit
+                        is ListenStart, is ListenJoin, is ListenLeave, is ListenUpdate -> listen.handle(user.id, event)
+                        else -> hub.handle(user.id, this, event)
+                    }
                 }
             } finally {
                 hub.disconnected(user.id, this)
+                // Offline on every device: leave any listen-together session.
+                if (!hub.isOnline(user.id)) listen.leaveAll(user.id)
             }
         }
 
@@ -149,6 +170,8 @@ fun Application.isaipettiSocial(
                     call.respond(HttpStatusCode.NoContent)
                 }
             }
+
+            post("/bug-reports") { call.respond(bugReports.report(call.me(), call.receive())) }
 
             route("/invites") {
                 get { call.respond(accounts.invites(call.me().id)) }
@@ -183,6 +206,10 @@ fun Application.isaipettiSocial(
                     call.respond(chat.messages(call.me().id, call.longParam("id"), before, limit))
                 }
                 post("/{id}/messages") { call.respond(chat.send(call.me(), call.longParam("id"), call.receive())) }
+                delete("/{id}") {
+                    chat.delete(call.me().id, call.longParam("id"))
+                    call.respond(HttpStatusCode.NoContent)
+                }
                 post("/{id}/read") {
                     chat.markRead(call.me().id, call.longParam("id"), call.receive<MarkReadRequest>().messageId)
                     call.respond(HttpStatusCode.NoContent)
@@ -190,7 +217,7 @@ fun Application.isaipettiSocial(
             }
         }
     }
-    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush) "off" else "on"}")
+    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush) "off" else "on"}, bug reports ${if (issueTracker == null) "off" else "on"}")
 }
 
 private fun ApplicationCall.me(): UserDto = principal<UserDto>() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")

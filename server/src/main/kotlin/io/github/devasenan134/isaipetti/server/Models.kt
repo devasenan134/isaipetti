@@ -16,7 +16,10 @@ fun ResultSet.toUser(prefix: String = "") = UserDto(
     displayName = getString("${prefix}display_name"),
 )
 
-/** A song as shared between friends. Ids are the same for every Navidrome user, so anyone can play it. */
+/**
+ * A song as shared between friends. Ids are the same for every Navidrome user, so anyone can play it.
+ * A shared clip also has [clipStartMs] and [clipEndMs]: only that part of the song is meant to be heard.
+ */
 @Serializable
 data class SongRef(
     val id: String,
@@ -26,7 +29,14 @@ data class SongRef(
     val albumId: String? = null,
     val coverArt: String? = null,
     val duration: Int = 0,
-)
+    val clipStartMs: Long? = null,
+    val clipEndMs: Long? = null,
+) {
+    val isClip get() = clipStartMs != null && clipEndMs != null
+}
+
+/** "1:05" */
+fun clockTime(ms: Long): String = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
 
 // Requests and responses
 
@@ -59,6 +69,10 @@ data class ConversationDto(
     val members: List<UserDto>,
     val lastMessage: MessageDto? = null,
     val unread: Int = 0,
+    /** False for a DM with someone who left or is no longer a friend, or a group everyone else left. Such chats can be deleted. */
+    val canMessage: Boolean = true,
+    /** Who is listening together in this chat right now (empty if nobody). */
+    val listeners: List<Long> = emptyList(),
 )
 
 @Serializable data class NewDmRequest(val userId: Long)

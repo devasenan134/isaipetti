@@ -1,6 +1,7 @@
 package io.github.devasenan134.isaipetti.ui.login
 
 import androidx.compose.foundation.layout.Arrangement
+import io.github.devasenan134.isaipetti.BuildConfig
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +40,8 @@ import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.components.PasswordStrength
 import kotlinx.coroutines.launch
 
-private const val DEFAULT_SERVER = "https://music.example.com"
+/** The Navidrome server filled in by default (set when building; empty if none). */
+private val DEFAULT_SERVER = BuildConfig.DEFAULT_SERVER
 
 /** Log in with an existing Navidrome account, or sign up with an invite code from a friend. */
 @Composable

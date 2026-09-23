@@ -9,11 +9,38 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ## 0.3.4 (unreleased)
 
+### New
+- **Listen together** in any chat, group or DM. Tap the headphones at the top of a chat to start a session with what you're playing; others in the chat see "listening together" and can join. Everyone in the session hears the same music, and anyone can play, pause, skip, seek or change the queue for everyone. Leave any time and your music keeps playing on its own. Shuffle is off during a session so everyone hears the same order, and a phone call or unplugged headphones pauses only your phone.
+- **Share part of a song.** In the share sheet, turn on "Share only a part" and pick a start and end point with the slider, or tap "Start here" / "End here" while the song plays. Preview it before sending. Friends see a "Clip 1:05–1:35" card that plays just that part; press play again to hear the rest.
+- **Updates from inside the app.** The app checks GitHub for a newer version when it starts (every few hours at most) and offers to install it, with the patch notes. Settings shows your version and has "Check for updates". The first time, Android asks you to allow Isaipetti to install apps.
+- **Report a bug** from Settings. Describe what happened (optionally with app and phone details) and it becomes an issue on the app's GitHub page. Reports are public but don't show your name.
+- **Delete old chats.** A chat with someone who left or is no longer your friend (or a group everyone else left) can be deleted: long-press it in the chat list, or tap "Delete chat" inside it. It's removed for you only.
+
 ### Improved
 - Screen changes now use the standard Material animation found in most Android apps: the old screen fades out quickly while the new one fades in with a short sideways move. The whole thing takes 0.3 seconds, replacing the slower full-width slide.
 
 ### Fixed
 - A slow back swipe no longer shrinks the page toward the middle over the previous screen. Slow and fast swipes now play the same animation, following your finger.
+
+### Server
+- Listen-together sessions: who's listening in each chat, and the shared queue and playback, relayed live over the WebSocket. Sessions are kept in memory and end when the last listener leaves or goes offline.
+- Songs in messages can carry a clip start and end; nonsense ranges are refused. Notifications for clips show the range.
+- New: `DELETE /conversations/{id}` for chats you can't message in anymore. It hides the chat and clears its history for you; once nobody who's still around has it, it's removed for good. Opening the DM again later starts it fresh.
+- Chats in `GET /conversations` now say whether you can still message in them, and who's listening together.
+
+### Security
+- The app's saved logins are no longer included in Android backups.
+- New app ID `io.github.devasenan134.isaipetti`, and release builds are signed with a permanent release key. **One-time step: uninstall the old app before installing this version** (Android sees it as a different app). You'll just need to log in again.
+- The server refuses oversized requests and messages, and caps listen-together queues at 5,000 songs.
+- Bug reports go through the friends server, so the GitHub token never ships inside the app.
+
+### Server
+- New: `POST /bug-reports`, turned on by setting `GITHUB_REPO` and `GITHUB_TOKEN`. At most 5 reports per person per hour.
+
+### Project
+- The project is licensed under GPL-3.0, with a README and the licenses of the bundled fonts and password list.
+- Server addresses, the Firebase app config and signing keys are no longer in the repository. They're read from private build settings.
+- The companion server is now called `isaipetti-social`, and code packages are `io.github.devasenan134.isaipetti` (app) and `io.github.devasenan134.isaipetti.server` (server). Its database file is now `isaipetti-social.db`.
 
 ---
 

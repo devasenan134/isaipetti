@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -61,8 +62,12 @@ fun rememberPosition(songId: String?, isPlaying: Boolean, intervalMs: Long = 200
 
 @Composable
 fun PlayerScreen(onClose: () -> Unit, onOpenAlbum: (String) -> Unit) {
-    val player = LocalApp.current.player
+    val app = LocalApp.current
+    val player = app.player
     val now by player.nowPlaying.collectAsStateWithLifecycle()
+    val listen = app.social.listen
+    val joined by listen.joined.collectAsStateWithLifecycle()
+    val conversations by app.social.conversations.collectAsStateWithLifecycle()
     val position by rememberPosition(now.songId, now.isPlaying)
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
@@ -87,6 +92,23 @@ fun PlayerScreen(onClose: () -> Unit, onOpenAlbum: (String) -> Unit) {
                 }
                 IconButton(onClick = { showQueue = true }) {
                     Icon(painterResource(R.drawable.ic_queue), contentDescription = "Queue")
+                }
+            }
+
+            // In a listen-together session, everything you do here changes the music for everyone.
+            joined?.let { id ->
+                val chat = conversations.firstOrNull { it.id == id }?.title(app.social.me?.id) ?: "a chat"
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_headphones), contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "Listening together in $chat",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    )
+                    TextButton(onClick = listen::leave) { Text("Leave") }
                 }
             }
 
@@ -130,11 +152,12 @@ fun PlayerScreen(onClose: () -> Unit, onOpenAlbum: (String) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val active = MaterialTheme.colorScheme.primary
-                IconButton(onClick = player::toggleShuffle) {
+                // Shuffle is off while listening together, so everyone hears the same order.
+                IconButton(onClick = player::toggleShuffle, enabled = joined == null) {
                     Icon(
                         painterResource(R.drawable.ic_shuffle),
                         contentDescription = "Shuffle",
-                        tint = if (now.shuffle) active else LocalContentColor.current,
+                        tint = if (now.shuffle && joined == null) active else LocalContentColor.current,
                     )
                 }
                 IconButton(onClick = player::previous) {

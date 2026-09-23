@@ -71,7 +71,12 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Listen together in chats | Server + App | P1 | 0.3.4 | In testing | Everyone controls. Works in groups and DMs. Needs the server update deployed |
+| Share part of a song (clip) | Server + App | P1 | 0.3.4 | In testing | Start/end picker with preview in the share sheet |
+| Delete chats you can't message in anymore | Server + App | P2 | 0.3.4 | In testing | Long-press in the chat list, or "Delete chat" in the chat |
+| Update check and install from inside the app | App | P1 | 0.3.4 | In testing | Uses GitHub Releases. Needs the public repo |
+| Bug reports from Settings to GitHub issues | Server + App | P2 | 0.3.4 | In testing | The server holds a GitHub token limited to issues |
+| Publish on GitHub with releases | Project | P1 | 0.3.4 | In progress | GPL-3.0. Friends install from GitHub Releases, with Obtainium for automatic updates |
 
 ---
 
@@ -116,4 +121,11 @@ Features not yet agreed. Add freely.
 
 Small tasks, cleanup and chores.
 
-- [ ] Add a `README.md` with how to build the app and run the server
+- [x] Add a `README.md` with how to build the app and run the server
+- [ ] Deploy the server update (listen together, clips, deleting chats) to the Mac mini
+- [x] Create a release signing key (`~/keys/isaipetti/isaipetti-release.jks`)
+- [ ] Back up the release key and its password (in `~/.gradle/gradle.properties`) somewhere safe, e.g. Vaultwarden
+- [ ] Create a fine-grained GitHub token (this repo only, Issues: read and write) and put it in the server's `.env` as `GITHUB_TOKEN`
+- [ ] Remove `google-services.json` and the server addresses from the git history before publishing
+- [ ] Restrict the Firebase API key in Google Cloud to the Android app (package name + signing certificate)
+- [ ] Create the public GitHub repository and publish 0.3.4 as the first GitHub release

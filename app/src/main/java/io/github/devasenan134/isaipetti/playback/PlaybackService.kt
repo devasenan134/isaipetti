@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
  */
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
+    private var listenSync: ListenSync? = null
     private val scope = MainScope()
     private val app get() = application as IsaipettiApp
     private val api get() = app.api
@@ -66,6 +67,8 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         startScrobbling(player)
+        stopAtClipEnds(player)
+        listenSync = ListenSync(player, api, app.social.listen, scope)
         // Tell friends what's playing (only while it's actually playing).
         player.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
@@ -80,6 +83,10 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         app.social.onPlayback(null, false)
+        // Without a player there's nothing to keep in sync.
+        listenSync?.release()
+        listenSync = null
+        app.social.listen.leave()
         scope.cancel()
         session?.run {
             player.release()
@@ -98,6 +105,22 @@ class PlaybackService : MediaSessionService() {
         ): ListenableFuture<MutableList<MediaItem>> = Futures.immediateFuture(
             mediaItems.map { it.buildUpon().setUri(songUri(it.mediaId)).build() }.toMutableList()
         )
+    }
+
+    /** A shared clip pauses once at its end point; pressing play afterwards carries on with the rest of the song. */
+    private fun stopAtClipEnds(player: ExoPlayer) {
+        var stoppedFor: MediaItem? = null
+        scope.launch {
+            while (isActive) {
+                delay(100)
+                val item = player.currentMediaItem ?: continue
+                val end = item.mediaMetadata.extras?.getLong(EXTRA_CLIP_END_MS, -1L)?.takeIf { it > 0 } ?: continue
+                if (item !== stoppedFor && player.isPlaying && player.currentPosition >= end) {
+                    stoppedFor = item
+                    player.pause()
+                }
+            }
+        }
     }
 
     /**

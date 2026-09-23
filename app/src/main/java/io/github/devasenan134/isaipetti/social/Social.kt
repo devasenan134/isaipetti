@@ -10,6 +10,8 @@ import io.github.devasenan134.isaipetti.data.FriendAddedEvent
 import io.github.devasenan134.isaipetti.data.FriendRemovedEvent
 import io.github.devasenan134.isaipetti.data.FriendRequestEvent
 import io.github.devasenan134.isaipetti.data.FriendRequests
+import io.github.devasenan134.isaipetti.data.ListenSessionEvent
+import io.github.devasenan134.isaipetti.data.ListenStateEvent
 import io.github.devasenan134.isaipetti.data.MessageEvent
 import io.github.devasenan134.isaipetti.data.NowPlayingUpdate
 import io.github.devasenan134.isaipetti.data.PresenceEvent
@@ -82,6 +84,9 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
 
     val me: SocialUser? get() = session.social.value?.user
 
+    /** Listening together in chats. */
+    val listen = ListenTogether(send = ::sendEvent, me = { me?.id })
+
     private val foreground = MutableStateFlow(false)
     private val playing = MutableStateFlow(false)
     private var nowPlaying: SongRef? = null
@@ -120,14 +125,19 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
         }
     }
 
-    private suspend fun fetchPushToken(): String? = suspendCancellableCoroutine { continuation ->
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            continuation.resume(if (task.isSuccessful) task.result else null)
+    private suspend fun fetchPushToken(): String? {
+        // Builds without a Firebase project (no google-services.json) simply have no notifications.
+        val messaging = runCatching { FirebaseMessaging.getInstance() }.getOrNull() ?: return null
+        return suspendCancellableCoroutine { continuation ->
+            messaging.token.addOnCompleteListener { task ->
+                continuation.resume(if (task.isSuccessful) task.result else null)
+            }
         }
     }
 
     /** Logs out of the friends server and stops notifications to this phone. */
     suspend fun logout() {
+        listen.leave()
         quietly { pushToken?.let { api.unregisterDevice(it) } }
         quietly { api.logout() }
         registeredToken = null
@@ -156,6 +166,12 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
     fun markRead(conversationId: Long, messageId: Long) {
         _conversations.update { list -> list.map { if (it.id == conversationId) it.copy(unread = 0) else it } }
         scope.launch { quietly { api.markRead(conversationId, messageId) } }
+    }
+
+    /** Deletes a chat you can't message in anymore. It disappears for you only. */
+    suspend fun deleteConversation(conversationId: Long) {
+        api.deleteConversation(conversationId)
+        _conversations.update { list -> list.filter { it.id != conversationId } }
     }
 
     /** Connect, and keep reconnecting with growing pauses until told to stop. */
@@ -209,6 +225,7 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
                         _status.value = Status.Online
                         sendEvent(AppStateUpdate(foreground.value))
                         nowPlaying?.let { sendEvent(NowPlayingUpdate(it)) }
+                        listen.onConnected()
                     }
                 }
 
@@ -242,6 +259,8 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
                 refreshConversations()
             }
             is FriendRequestEvent -> refreshRequests()
+            is ListenSessionEvent -> listen.handle(event)
+            is ListenStateEvent -> listen.handle(event)
             is FriendAddedEvent, is FriendRemovedEvent -> {
                 refreshFriends()
                 refreshRequests()
@@ -259,7 +278,10 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
     }
 
     private suspend fun refreshRequests() = quietly { _requests.value = api.friendRequests() }
-    private suspend fun refreshConversations() = quietly { _conversations.value = api.conversations() }
+    private suspend fun refreshConversations() = quietly {
+        _conversations.value = api.conversations()
+        listen.onConversations(_conversations.value)
+    }
 
     private fun List<Friend>.sortedForDisplay() =
         sortedWith(compareByDescending<Friend> { it.online }.thenBy { it.user.displayName.lowercase() })

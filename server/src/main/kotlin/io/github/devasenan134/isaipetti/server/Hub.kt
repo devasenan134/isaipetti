@@ -95,6 +95,7 @@ class Hub(private val friendsOf: suspend (Long) -> List<Long>) {
                 if (event.song == null) nowPlaying.remove(userId) else nowPlaying[userId] = event.song
                 announcePresence(userId)
             }
+            else -> Unit // listen-together events are handled by ListenTogether
         }
     }
 

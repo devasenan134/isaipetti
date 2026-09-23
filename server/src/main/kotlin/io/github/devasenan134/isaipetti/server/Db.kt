@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -119,6 +119,12 @@ class Db(path: String) {
         val SCHEMA_V3 = """
             ALTER TABLE users ADD COLUMN navidrome_id TEXT;
             CREATE UNIQUE INDEX users_by_navidrome_id ON users(navidrome_id)
+        """.trimIndent()
+
+        // Deleting a chat hides it for you and clears its history (for you only) up to [cleared_id].
+        val SCHEMA_V4 = """
+            ALTER TABLE conversation_members ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE conversation_members ADD COLUMN cleared_id INTEGER NOT NULL DEFAULT 0
         """.trimIndent()
     }
 }

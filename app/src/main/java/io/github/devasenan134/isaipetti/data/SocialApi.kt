@@ -15,7 +15,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class SocialException(message: String, val code: Int = 0) : Exception(message)
 
-/** HTTP calls to the companion server ("isaipetti-social"): accounts, invites, friends and chat. */
+/** HTTP calls to the companion server (isaipetti-social): accounts, invites, friends and chat. */
 class SocialApi(
     private val http: OkHttpClient,
     val baseUrl: String,
@@ -40,6 +40,10 @@ class SocialApi(
     suspend fun registerDevice(pushToken: String) = post<DeviceBody, Unit>("/devices", DeviceBody(pushToken))
     suspend fun unregisterDevice(pushToken: String) = post<DeviceBody, Unit>("/devices/remove", DeviceBody(pushToken))
 
+    /** Files a bug report; the server turns it into a public GitHub issue. */
+    suspend fun reportBug(title: String, description: String, deviceInfo: String?): BugReport =
+        post("/bug-reports", BugBody(title, description, deviceInfo))
+
     suspend fun createInvite(): Invite = post("/invites", Unit)
     suspend fun invites(): List<Invite> = get("/invites")
 
@@ -57,6 +61,7 @@ class SocialApi(
         get("/conversations/$conversationId/messages" + (before?.let { "?before=$it" } ?: ""))
     suspend fun sendMessage(conversationId: Long, body: String, song: SongRef? = null): ChatMessage =
         post("/conversations/$conversationId/messages", MessageBody(body, song))
+    suspend fun deleteConversation(conversationId: Long) = send<Unit>("DELETE", "/conversations/$conversationId", null)
     suspend fun markRead(conversationId: Long, messageId: Long) =
         post<ReadBody, Unit>("/conversations/$conversationId/read", ReadBody(messageId))
 
@@ -99,4 +104,5 @@ class SocialApi(
     @Serializable private data class ReadBody(val messageId: Long)
     @Serializable private data class RenameBody(val displayName: String)
     @Serializable private data class DeviceBody(val token: String)
+    @Serializable private data class BugBody(val title: String, val description: String, val deviceInfo: String?)
 }

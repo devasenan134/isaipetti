@@ -2,6 +2,10 @@ package io.github.devasenan134.isaipetti.ui.social
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import io.github.devasenan134.isaipetti.data.SocialUser
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -106,8 +110,29 @@ fun ChatScreen(conversationId: Long, nav: Nav) {
 
     val other = conversation?.members?.firstOrNull { it.id != me }
     val otherFriend = friends.firstOrNull { it.user.id == other?.id }
+    val listen = social.listen
+    val sessions by listen.sessions.collectAsStateWithLifecycle()
+    val joined by listen.joined.collectAsStateWithLifecycle()
+    val listeners = sessions[conversationId].orEmpty()
+    val inSession = joined == conversationId
     Column(Modifier.imePadding()) {
-        ScreenHeader(conversation?.title(me) ?: "Chat", onBack = nav.back)
+        ScreenHeader(conversation?.title(me) ?: "Chat", onBack = nav.back) {
+            if (conversation?.canMessage == true) {
+                IconButton(onClick = {
+                    when {
+                        inSession -> listen.leave()
+                        listeners.isEmpty() -> listen.start(conversationId)
+                        else -> listen.join(conversationId)
+                    }
+                }) {
+                    Icon(
+                        painterResource(R.drawable.ic_headphones),
+                        contentDescription = if (inSession) "Stop listening together" else "Listen together",
+                        tint = if (inSession) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                    )
+                }
+            }
+        }
         val subtitle = when {
             conversation == null -> null
             conversation.isGroup -> conversation.members.joinToString { if (it.id == me) "You" else it.displayName }
@@ -124,6 +149,10 @@ fun ChatScreen(conversationId: Long, nav: Nav) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 60.dp, end = 16.dp, bottom = 4.dp),
             )
+        }
+
+        if (listeners.isNotEmpty() && conversation != null) {
+            ListenBar(conversation.members, listeners, me, inSession, onJoin = { listen.join(conversationId) }, onLeave = listen::leave)
         }
 
         LazyColumn(
@@ -153,6 +182,21 @@ fun ChatScreen(conversationId: Long, nav: Nav) {
             }
         }
 
+        if (conversation?.canMessage == false) {
+            // They left or aren't your friend anymore: no replying, but the chat can be deleted.
+            var confirm by remember { mutableStateOf(false) }
+            if (confirm) DeleteChatDialog(conversation.title(me), conversationId, onDone = { confirm = false }, onDeleted = nav.back)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (conversation.isGroup) "Everyone else has left this group." else "You can't message ${conversation.title(me)} anymore.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { confirm = true }) { Text("Delete chat") }
+            }
+            return@Column
+        }
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             // Share whatever is playing right now with one tap.
             val current = nowPlaying.song
@@ -203,6 +247,35 @@ private fun Bubble(message: ChatMessage, mine: Boolean, showName: Boolean) {
                     modifier = Modifier.align(Alignment.End).padding(top = 2.dp),
                 )
             }
+        }
+    }
+}
+
+/** "Alice and Bob are listening together · Join", or "Listening together with Alice · Leave" once you're in. */
+@Composable
+private fun ListenBar(members: List<SocialUser>, listeners: List<Long>, me: Long?, inSession: Boolean, onJoin: () -> Unit, onLeave: () -> Unit) {
+    val others = members.filter { it.id in listeners && it.id != me }.map { it.displayName }
+    val names = when (others.size) {
+        0 -> ""
+        1 -> others[0]
+        else -> others.dropLast(1).joinToString() + " and " + others.last()
+    }
+    val text = when {
+        inSession && others.isEmpty() -> "Listening together. Waiting for others to join"
+        inSession -> "Listening together with $names"
+        else -> "$names ${if (others.size == 1) "is" else "are"} listening together"
+    }
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(R.drawable.ic_headphones), contentDescription = null, Modifier.size(18.dp))
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+            )
+            if (inSession) TextButton(onClick = onLeave) { Text("Leave") } else Button(onClick = onJoin) { Text("Join") }
         }
     }
 }
