@@ -103,6 +103,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 | Artists (singers) box in Search and singer pages | App | P2 | 0.5.2 | Built | Singers found through search (Navidrome's artist list only has album artists) |
 | Playlist editing for the author: add, remove, rename, public/private, delete with two confirmations | App | P1 | 0.5.2 | Built | Navidrome also checks ownership |
 | Live search suggestions | App | P2 | 0.5.2 | Built | Past searches and names from results |
+| Spotify-style Save to (checkboxes) from the player; New playlist in Your Library | App | P2 | 0.5.2 | Built | |
 
 ---
 
