@@ -1,0 +1,187 @@
+package io.github.devasenan134.isaipetti.playback
+
+import android.content.ComponentName
+import android.content.Context
+import android.net.Uri
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.core.os.bundleOf
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import io.github.devasenan134.isaipetti.data.Song
+import io.github.devasenan134.isaipetti.data.SubsonicApi
+import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
+/** What the UI shows about playback. */
+data class NowPlaying(
+    val songId: String? = null,
+    val title: String = "",
+    val artist: String = "",
+    val album: String = "",
+    val albumId: String? = null,
+    val artworkUri: Uri? = null,
+    val isPlaying: Boolean = false,
+    val isBuffering: Boolean = false,
+    val durationMs: Long = 0,
+    val shuffle: Boolean = false,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
+)
+
+/** A queue entry. [index] is its position in the player's list, used to jump to it. */
+data class QueueEntry(val index: Int, val item: MediaItem)
+
+/**
+ * The UI's remote control for [PlaybackService]. It connects through a MediaController
+ * and turns player events into [StateFlow]s that Compose screens can observe.
+ */
+class PlayerConnection(private val context: Context, private val api: SubsonicApi) {
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var controller: MediaController? = null
+
+    private val _nowPlaying = MutableStateFlow(NowPlaying())
+    val nowPlaying: StateFlow<NowPlaying> = _nowPlaying
+
+    /** The queue in play order (follows shuffle), plus which entry is current. */
+    private val _queue = MutableStateFlow<Pair<List<QueueEntry>, Int>>(emptyList<QueueEntry>() to C.INDEX_UNSET)
+    val queue: StateFlow<Pair<List<QueueEntry>, Int>> = _queue
+
+    private val listener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) = refresh()
+    }
+
+    fun connect() {
+        if (controllerFuture != null) return
+        val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
+        val future = MediaController.Builder(context, token).buildAsync()
+        controllerFuture = future
+        future.addListener({
+            controller = runCatching { future.get() }.getOrNull()?.also {
+                it.addListener(listener)
+                refresh()
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    fun disconnect() {
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
+        controller = null
+    }
+
+    /** Current position in ms. Read it often (e.g. every 200 ms) for progress bars and lyrics. */
+    fun positionMs(): Long = controller?.currentPosition ?: 0
+
+    fun play(songs: List<Song>, startIndex: Int = 0, shuffle: Boolean = false) {
+        val c = controller ?: return
+        if (songs.isEmpty()) return
+        c.shuffleModeEnabled = shuffle
+        val start = if (shuffle) songs.indices.random() else startIndex
+        c.setMediaItems(songs.map { it.toMediaItem() }, start, 0)
+        c.prepare()
+        c.play()
+    }
+
+    fun playNext(song: Song) {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) return play(listOf(song))
+        c.addMediaItem(c.currentMediaItemIndex + 1, song.toMediaItem())
+    }
+
+    fun addToQueue(song: Song) {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) return play(listOf(song))
+        c.addMediaItem(song.toMediaItem())
+    }
+
+    fun togglePlay() {
+        val c = controller ?: return
+        if (c.isPlaying) c.pause() else {
+            if (c.playbackState == Player.STATE_IDLE) c.prepare()
+            if (c.playbackState == Player.STATE_ENDED) c.seekTo(c.currentMediaItemIndex, 0)
+            c.play()
+        }
+    }
+
+    fun next() = controller?.seekToNext() ?: Unit
+    fun previous() = controller?.seekToPrevious() ?: Unit
+    fun seekTo(positionMs: Long) = controller?.seekTo(positionMs) ?: Unit
+    fun jumpTo(index: Int) = controller?.run { seekTo(index, 0); play() } ?: Unit
+
+    /** Moves to another song in the queue, keeping the current play/pause state (used by swiping). */
+    fun skipTo(index: Int) = controller?.seekTo(index, 0) ?: Unit
+
+    /** Always the previous song. The previous button instead restarts the current song if it's past 3 seconds. */
+    fun previousSong() = controller?.seekToPreviousMediaItem() ?: Unit
+    fun nextSong() = controller?.seekToNextMediaItem() ?: Unit
+
+    fun toggleShuffle() {
+        val c = controller ?: return
+        c.shuffleModeEnabled = !c.shuffleModeEnabled
+    }
+
+    /** off -> repeat all -> repeat one -> off */
+    fun cycleRepeat() {
+        val c = controller ?: return
+        c.repeatMode = when (c.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+    }
+
+    private fun refresh() {
+        val c = controller ?: return
+        val item = c.currentMediaItem
+        val meta = item?.mediaMetadata
+        _nowPlaying.value = NowPlaying(
+            songId = item?.mediaId,
+            title = meta?.title?.toString().orEmpty(),
+            artist = meta?.artist?.toString().orEmpty(),
+            album = meta?.albumTitle?.toString().orEmpty(),
+            albumId = meta?.extras?.getString(EXTRA_ALBUM_ID),
+            artworkUri = meta?.artworkUri,
+            isPlaying = c.isPlaying,
+            isBuffering = c.playbackState == Player.STATE_BUFFERING,
+            durationMs = c.duration.takeIf { it > 0 } ?: 0,
+            shuffle = c.shuffleModeEnabled,
+            repeatMode = c.repeatMode,
+        )
+
+        // Walk the timeline in play order, so the queue matches what will actually play next.
+        val timeline = c.currentTimeline
+        val entries = mutableListOf<QueueEntry>()
+        var index = timeline.getFirstWindowIndex(c.shuffleModeEnabled)
+        while (index != C.INDEX_UNSET) {
+            entries += QueueEntry(index, c.getMediaItemAt(index))
+            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, c.shuffleModeEnabled)
+        }
+        _queue.value = entries to c.currentMediaItemIndex
+    }
+
+    private fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
+        .setMediaId(id)
+        .setUri(api.streamUrl(id))
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(title)
+                .setArtist(artist)
+                .setAlbumTitle(album)
+                .setArtworkUri(api.coverUrl(coverArt, 600)?.toUri())
+                .setDurationMs(duration * 1000L)
+                .setIsPlayable(true)
+                .setIsBrowsable(false)
+                .setExtras(bundleOf(EXTRA_ALBUM_ID to albumId))
+                .build()
+        )
+        .build()
+
+    private companion object {
+        const val EXTRA_ALBUM_ID = "albumId"
+    }
+}
