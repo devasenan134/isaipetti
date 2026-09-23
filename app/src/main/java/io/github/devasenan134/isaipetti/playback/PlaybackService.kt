@@ -27,7 +27,8 @@ import kotlinx.coroutines.launch
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private val scope = MainScope()
-    private val api get() = (application as IsaipettiApp).api
+    private val app get() = application as IsaipettiApp
+    private val api get() = app.api
 
     override fun onCreate() {
         super.onCreate()
@@ -53,11 +54,20 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         startScrobbling(player)
+        // Tell friends what's playing (only while it's actually playing).
+        player.addListener(object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+                if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED)) {
+                    app.social.onPlayback(player.currentMediaItem?.toSongRef(), player.isPlaying)
+                }
+            }
+        })
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = session
 
     override fun onDestroy() {
+        app.social.onPlayback(null, false)
         scope.cancel()
         session?.run {
             player.release()

@@ -25,10 +25,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         app.player.connect()
+        app.social.setForeground(true)
     }
 
     override fun onStop() {
         app.player.disconnect()
+        app.social.setForeground(false)
         super.onStop()
     }
 }

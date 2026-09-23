@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import io.github.devasenan134.isaipetti.IsaipettiApp
 import io.github.devasenan134.isaipetti.data.Album
 import io.github.devasenan134.isaipetti.data.Song
+import io.github.devasenan134.isaipetti.data.toRef
+import io.github.devasenan134.isaipetti.ui.social.ShareSongSheet
 import coil3.compose.AsyncImage
 
 /** Lets any screen reach the app-wide objects (API, player) without passing them down by hand. */
@@ -95,6 +97,8 @@ fun SongRow(
 ) {
     val player = LocalApp.current.player
     var menuOpen by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf(false) }
+    if (sharing) ShareSongSheet(song.toRef(), onDismiss = { sharing = false })
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -132,6 +136,7 @@ fun SongRow(
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(text = { Text("Play next") }, onClick = { player.playNext(song); menuOpen = false })
                 DropdownMenuItem(text = { Text("Add to queue") }, onClick = { player.addToQueue(song); menuOpen = false })
+                DropdownMenuItem(text = { Text("Share with friends") }, onClick = { sharing = true; menuOpen = false })
                 if (onOpenAlbum != null && song.albumId != null) {
                     DropdownMenuItem(text = { Text("Go to movie") }, onClick = { onOpenAlbum(song.albumId); menuOpen = false })
                 }

@@ -1,0 +1,12 @@
+services:
+  isaipetti-social:
+    build: .
+    container_name: isaipetti-social
+    env_file: .env
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8095:8095"  # only reachable through the Cloudflare tunnel
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # lets the container reach Navidrome on the host
+    restart: unless-stopped

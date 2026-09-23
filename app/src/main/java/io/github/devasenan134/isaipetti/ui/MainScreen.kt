@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -33,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.toRoute
 import io.github.devasenan134.isaipetti.R
 import io.github.devasenan134.isaipetti.ui.home.HomeScreen
@@ -43,7 +46,10 @@ import io.github.devasenan134.isaipetti.ui.library.ArtistsScreen
 import io.github.devasenan134.isaipetti.ui.library.PlaylistScreen
 import io.github.devasenan134.isaipetti.ui.player.MiniPlayer
 import io.github.devasenan134.isaipetti.ui.player.PlayerScreen
+import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.search.SearchScreen
+import io.github.devasenan134.isaipetti.ui.social.ChatScreen
+import io.github.devasenan134.isaipetti.ui.social.SocialScreen
 import kotlinx.serialization.Serializable
 
 // Each screen is a "route". Routes with an id carry it along when navigating.
@@ -54,12 +60,15 @@ import kotlinx.serialization.Serializable
 @Serializable data class AlbumRoute(val id: String)
 @Serializable data class ArtistRoute(val id: String)
 @Serializable data class PlaylistRoute(val id: String)
+@Serializable object SocialRoute
+@Serializable data class ChatRoute(val id: Long)
 
 /** Navigation actions that screens can call. */
 class Nav(
     val openAlbum: (String) -> Unit,
     val openArtist: (String) -> Unit,
     val openPlaylist: (String) -> Unit,
+    val openChat: (Long) -> Unit,
     val back: () -> Unit,
 )
 
@@ -70,6 +79,7 @@ private val tabs = listOf(
     Tab("Movies", AlbumsRoute) { painterResource(R.drawable.ic_album) },
     Tab("Composers", ArtistsRoute) { rememberVectorPainter(Icons.Filled.Person) },
     Tab("Search", SearchRoute) { rememberVectorPainter(Icons.Filled.Search) },
+    Tab("Friends", SocialRoute) { painterResource(R.drawable.ic_group) },
 )
 
 @Composable
@@ -80,6 +90,7 @@ fun MainScreen() {
         openAlbum = { navController.navigate(AlbumRoute(it)) },
         openArtist = { navController.navigate(ArtistRoute(it)) },
         openPlaylist = { navController.navigate(PlaylistRoute(it)) },
+        openChat = { navController.navigate(ChatRoute(it)) },
         back = { navController.popBackStack() },
     )
 
@@ -89,6 +100,11 @@ fun MainScreen() {
                 Column {
                     MiniPlayer(onOpen = { playerOpen = true })
                     val current by navController.currentBackStackEntryAsState()
+                    // Unread chats + friend requests show as a badge on the Friends tab.
+                    val social = LocalApp.current.social
+                    val conversations by social.conversations.collectAsStateWithLifecycle()
+                    val requests by social.requests.collectAsStateWithLifecycle()
+                    val friendsBadge = conversations.sumOf { it.unread } + requests.incoming.size
                     NavigationBar {
                         tabs.forEach { tab ->
                             val selected = current?.destination?.hierarchy?.any { it.hasRoute(tab.route::class) } == true
@@ -102,7 +118,13 @@ fun MainScreen() {
                                         restoreState = true
                                     }
                                 },
-                                icon = { Icon(tab.icon(), contentDescription = null) },
+                                icon = {
+                                    if (tab.route == SocialRoute && friendsBadge > 0) {
+                                        BadgedBox(badge = { Badge { Text("$friendsBadge") } }) { Icon(tab.icon(), contentDescription = null) }
+                                    } else {
+                                        Icon(tab.icon(), contentDescription = null)
+                                    }
+                                },
                                 label = { Text(tab.label) },
                             )
                         }
@@ -118,6 +140,8 @@ fun MainScreen() {
                 composable<AlbumRoute> { AlbumScreen(it.toRoute<AlbumRoute>().id, nav) }
                 composable<ArtistRoute> { ArtistScreen(it.toRoute<ArtistRoute>().id, nav) }
                 composable<PlaylistRoute> { PlaylistScreen(it.toRoute<PlaylistRoute>().id, nav) }
+                composable<SocialRoute> { SocialScreen(nav) }
+                composable<ChatRoute> { ChatScreen(it.toRoute<ChatRoute>().id, nav) }
             }
         }
 

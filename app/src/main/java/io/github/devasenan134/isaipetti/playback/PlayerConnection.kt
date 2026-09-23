@@ -4,15 +4,13 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
-import androidx.core.os.bundleOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.devasenan134.isaipetti.data.Song
+import io.github.devasenan134.isaipetti.data.SongRef
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +29,8 @@ data class NowPlaying(
     val durationMs: Long = 0,
     val shuffle: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    /** The current song in the form friends can play too (for sharing). */
+    val song: SongRef? = null,
 )
 
 /** A queue entry. [index] is its position in the player's list, used to jump to it. */
@@ -151,6 +151,7 @@ class PlayerConnection(private val context: Context, private val api: SubsonicAp
             durationMs = c.duration.takeIf { it > 0 } ?: 0,
             shuffle = c.shuffleModeEnabled,
             repeatMode = c.repeatMode,
+            song = item?.toSongRef(),
         )
 
         // Walk the timeline in play order, so the queue matches what will actually play next.
@@ -164,24 +165,5 @@ class PlayerConnection(private val context: Context, private val api: SubsonicAp
         _queue.value = entries to c.currentMediaItemIndex
     }
 
-    private fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
-        .setMediaId(id)
-        .setUri(api.streamUrl(id))
-        .setMediaMetadata(
-            MediaMetadata.Builder()
-                .setTitle(title)
-                .setArtist(artist)
-                .setAlbumTitle(album)
-                .setArtworkUri(api.coverUrl(coverArt, 600)?.toUri())
-                .setDurationMs(duration * 1000L)
-                .setIsPlayable(true)
-                .setIsBrowsable(false)
-                .setExtras(bundleOf(EXTRA_ALBUM_ID to albumId))
-                .build()
-        )
-        .build()
-
-    private companion object {
-        const val EXTRA_ALBUM_ID = "albumId"
-    }
+    private fun Song.toMediaItem(): MediaItem = toMediaItem(api)
 }

@@ -12,12 +12,20 @@ android {
         applicationId = "io.github.devasenan134.isaipetti"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.3.0"
+
+        // Address of the companion (friends) server. For testing against a local copy:
+        //   ./gradlew assembleDebug -PsocialUrl=http://10.0.2.2:8095
+        val socialUrl = (project.findProperty("socialUrl") as String?) ?: "https://friends.example.com"
+        buildConfigField("String", "SOCIAL_URL", "\"$socialUrl\"")
+        // Plain http is only allowed when a local test server is configured.
+        manifestPlaceholders["cleartext"] = socialUrl.startsWith("http://").toString()
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -40,6 +41,7 @@ import androidx.media3.common.Player
 import io.github.devasenan134.isaipetti.R
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.components.formatDuration
+import io.github.devasenan134.isaipetti.ui.social.ShareSongSheet
 import kotlinx.coroutines.delay
 
 /**
@@ -64,6 +66,7 @@ fun PlayerScreen(onClose: () -> Unit, onOpenAlbum: (String) -> Unit) {
     val position by rememberPosition(now.songId, now.isPlaying)
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
+    var showShare by rememberSaveable { mutableStateOf(false) }
     // While the user drags the slider, show where they're dragging instead of the real position.
     var dragging by remember { mutableStateOf<Float?>(null) }
 
@@ -79,6 +82,9 @@ fun PlayerScreen(onClose: () -> Unit, onOpenAlbum: (String) -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                IconButton(onClick = { showShare = true }, enabled = now.song != null) {
+                    Icon(Icons.Filled.Share, contentDescription = "Share with friends")
+                }
                 IconButton(onClick = { showQueue = true }) {
                     Icon(painterResource(R.drawable.ic_queue), contentDescription = "Queue")
                 }
@@ -160,4 +166,5 @@ fun PlayerScreen(onClose: () -> Unit, onOpenAlbum: (String) -> Unit) {
     }
 
     if (showQueue) QueueSheet(onDismiss = { showQueue = false })
+    if (showShare) now.song?.let { ShareSongSheet(it, onDismiss = { showShare = false }) }
 }

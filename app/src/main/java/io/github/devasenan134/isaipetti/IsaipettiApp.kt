@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.devasenan134.isaipetti.data.SessionStore
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.playback.PlayerConnection
+import io.github.devasenan134.isaipetti.social.Social
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -18,6 +19,8 @@ class IsaipettiApp : Application() {
         private set
     lateinit var player: PlayerConnection
         private set
+    lateinit var social: Social
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -28,5 +31,6 @@ class IsaipettiApp : Application() {
             .build()
         api = SubsonicApi(http) { session.credentials.value }
         player = PlayerConnection(this, api)
+        social = Social(session, http, BuildConfig.SOCIAL_URL)
     }
 }
