@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.5.3 (unreleased)
+## 0.5.3 (2026-09-23): Swipe gestures, cover colours and resume
 
 ### New
 - **Swipe down to minimize the player.** Drag the full player down and it follows your finger. Let go far enough (or flick) and it tucks back into the mini player; otherwise it springs back. If you've scrolled down to "About this song", swiping scrolls back up first.

@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.5.2 (app `versionCode` 13)
+- **Current version:** 0.5.3 (app `versionCode` 14)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,13 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.5.3: Swipe gestures, cover colours and resume
+- Swipe down to minimize the player; gentle gradient matched to the cover
+- Swipe songs right to play next, left to add to the queue
+- Check mark on songs you've liked or saved to a playlist, showing where
+- Resume a playlist from where you left off, keeping the shuffled order
+- Recents include plays from movie, composer and singer pages; Home no longer lists playlists
 
 ### 0.5.2: Artists, playlist editing and live search
 - Artists (singers) box in Search and singer pages; composers and artists shown separately in results
@@ -106,9 +113,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Resume a playlist from the song you left off, keeping the shuffled order | App | P1 | 0.5.3 | Built | Queue order and current song saved on the phone per playlist |
-| Recents include plays from movie, composer and singer pages; Home without playlists | App | P2 | 0.5.3 | Built | |
-| Swipe down to minimize, cover-matched gradient, swipe songs to queue, saved check marks | App | P2 | 0.5.3 | Built | Colours via Android's Palette library; playlist index loaded at start |
+| _nothing right now_ | | | | | |
 
 ---
 
