@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.5.1 (unreleased)
+## 0.5.1 (2026-09-23): Playlists in Search, song details and what's new
 
 ### New
 - **About this song.** In the full player, scroll down (or tap "About this song ⌄") to see the singers, music director, composer and lyricist (when tagged), movie, year, genre, track, length, audio quality (format, bitrate, sample rate), file size, how often you've played it and when it was added.

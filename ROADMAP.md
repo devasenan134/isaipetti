@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.5.0 (app `versionCode` 11)
+- **Current version:** 0.5.1 (app `versionCode` 12)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,12 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.5.1: Playlists in Search, song details and what's new
+- Playlists box in Search; recently searched songs, movies and composers; recently played playlists
+- Playlist pages show the author and details; Your Library shows your own and liked playlists
+- Scroll down in the player for details about the song
+- Settings shows the patch notes, with Show more
 
 ### 0.5.0: Your Library, likes and a new Search
 - Tabs are Home, Search, Your Library, Friends; Movies and Composers open from Search
@@ -94,9 +100,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Playlists box in Search and recently played playlists | App | P2 | 0.5.1 | Built | Recently played playlists kept on the phone |
-| Playlist author, details and readable total time | App | P2 | 0.5.1 | Built | |
-| Song details below the player; patch notes in Settings | App | P2 | 0.5.1 | Built | Details from Navidrome's getSong; notes from GitHub Releases |
+| _nothing right now_ | | | | | |
 
 ---
 
