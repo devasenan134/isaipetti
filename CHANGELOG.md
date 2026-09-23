@@ -10,6 +10,10 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 ## 0.5.3 (unreleased)
 
 ### New
+- **Swipe down to minimize the player.** Drag the full player down and it follows your finger. Let go far enough (or flick) and it tucks back into the mini player; otherwise it springs back. If you've scrolled down to "About this song", swiping scrolls back up first.
+- **A background that matches the song.** The full player has a gentle gradient in a muted colour from the cover art. It's picked to suit dark or light mode and fades smoothly when the song changes.
+- **Swipe songs to queue them.** In any song list, **swipe right to play next** or **swipe left to add to the end of the queue**. The row springs back and a short message confirms it.
+- **Saved marks, like Spotify.** Songs you've liked or added to one of your playlists show a **✓** in lists. Tap it to see where it's saved (Liked songs and which playlists) and change it there.
 - **Resume a playlist where you left off.** When you play from a playlist, the app remembers the queue and which song you were on. Next time you open that playlist, **Resume · song name** continues from that song, in the same order as before, so a shuffled order stays the same. Songs added to the playlist since then join the end, and removed ones are skipped. The spot within the song isn't kept; the song starts from the beginning. This is kept on your phone for your 30 most recent playlists and cleared when you log out.
 
 ### Improved
