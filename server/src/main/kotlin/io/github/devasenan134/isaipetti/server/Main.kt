@@ -48,13 +48,20 @@ fun main() {
 }
 
 /** Everything the server does, as one Ktor module (tests start it the same way). */
-fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome(config)) {
+fun Application.isaipettiSocial(
+    config: Config,
+    navidrome: Navidrome = Navidrome(config),
+    pushSender: PushSender = config.firebaseKeyFile?.let { FcmSender(it) } ?: NoPush,
+) {
     val db = Db(config.dbPath)
     val friends = Friends(db)
     val hub = Hub(friends::friendIds)
     friends.hub = hub
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
     val chat = Chat(db, friends, hub)
+    val push = Push(db, pushSender)
+    friends.push = push
+    chat.onUnseen = push::newMessage
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
     // Every 10 minutes, remove people whose Navidrome account is gone.
@@ -113,7 +120,7 @@ fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome
                 for (frame in incoming) {
                     if (frame !is Frame.Text) continue
                     val event = runCatching { eventJson.decodeFromString(ClientEvent.serializer(), frame.readText()) }.getOrNull()
-                    if (event != null) hub.handle(user.id, event)
+                    if (event != null) hub.handle(user.id, this, event)
                 }
             } finally {
                 hub.disconnected(user.id, this)
@@ -130,6 +137,17 @@ fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome
             post("/auth/logout") {
                 accounts.logout(call.bearerToken())
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            route("/devices") {
+                post {
+                    push.register(call.me().id, call.receive<DeviceRequest>().token)
+                    call.respond(HttpStatusCode.NoContent)
+                }
+                post("/remove") {
+                    push.unregister(call.me().id, call.receive<DeviceRequest>().token)
+                    call.respond(HttpStatusCode.NoContent)
+                }
             }
 
             route("/invites") {
@@ -172,7 +190,7 @@ fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome
             }
         }
     }
-    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}")
+    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush) "off" else "on"}")
 }
 
 private fun ApplicationCall.me(): UserDto = principal<UserDto>() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")

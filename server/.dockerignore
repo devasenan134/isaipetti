@@ -3,3 +3,4 @@ build
 .kotlin
 data
 .env
+firebase-key.json

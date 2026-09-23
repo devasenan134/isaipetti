@@ -40,6 +40,15 @@ private class FakeNavidrome : Navidrome(Config(0, "", "http://unused", "", "")) 
     }
 }
 
+/** Records notifications instead of sending them. */
+private class FakePush : PushSender {
+    val sent = mutableListOf<Pair<String, Map<String, String>>>()
+    override suspend fun send(deviceToken: String, data: Map<String, String>): PushSender.Result {
+        sent += deviceToken to data
+        return if (deviceToken.startsWith("dead")) PushSender.Result.InvalidToken else PushSender.Result.Sent
+    }
+}
+
 class FlowTest {
     private fun dbFile() = File.createTempFile("isaipetti-social", ".db").apply { delete(); deleteOnExit() }.path
 
@@ -195,6 +204,60 @@ class FlowTest {
         assertEquals(null, problem("kaatru veliyidai"))
         assertEquals(PasswordRules.Strength.Okay, PasswordRules.check("mellisaimannan", "alice").strength)
         assertEquals(PasswordRules.Strength.Strong, PasswordRules.check("Nila-Kaayudhu 1994", "alice").strength)
+    }
+
+    @Test
+    fun `push notifications go to people without the app on screen`() = testApplication {
+        val navidrome = FakeNavidrome()
+        val push = FakePush()
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), navidrome, push) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val alice = client.login("alice")
+        val bob = client.login("bob")
+        val carol = client.login("carol")
+        // Bob also still has an old phone whose token Firebase no longer accepts.
+        for ((session, token) in listOf(alice to "phone-alice", bob to "phone-bob", bob to "dead-old-phone-bob", carol to "phone-carol")) {
+            client.postJson("/devices", DeviceRequest(token), session.sessionToken)
+        }
+
+        // Carol is offline and asks Bob (also offline) to be friends: Bob gets a notification.
+        client.postJson("/friends/requests", AddFriendRequest("bob"), carol.sessionToken)
+        assertEquals(
+            setOf("phone-bob" to "friendRequest", "dead-old-phone-bob" to "friendRequest"),
+            push.sent.map { it.first to it.second["type"] }.toSet(),
+        )
+        push.sent.clear()
+        client.postJson("/friends/requests", AddFriendRequest("alice"), bob.sessionToken)
+        client.postJson("/friends/requests", AddFriendRequest("alice"), carol.sessionToken)
+        client.postJson("/friends/requests/${bob.user.id}/accept", Unit, alice.sessionToken)
+        client.postJson("/friends/requests/${carol.user.id}/accept", Unit, alice.sessionToken)
+        push.sent.clear()
+
+        // Alice has the app open; Bob is listening with the app in the background; Carol is offline.
+        val aliceWs = client.webSocketSession("/ws?token=${alice.sessionToken}")
+        aliceWs.send(Frame.Text(eventJson.encodeToString(ClientEvent.serializer(), AppStateUpdate(visible = true))))
+        val bobWs = client.webSocketSession("/ws?token=${bob.sessionToken}")
+        bobWs.send(Frame.Text(eventJson.encodeToString(ClientEvent.serializer(), AppStateUpdate(visible = false))))
+        eventually { client.friends(alice).count { it.online } == 1 }
+
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id, carol.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        client.postJson("/conversations/${group.id}/messages", SendMessageRequest("dinner?"), alice.sessionToken)
+        // Bob (background) and Carol (offline) are notified; Alice sent it, so she isn't.
+        eventually { push.sent.size == 2 }
+        // (Bob's dead old phone was forgotten after the first failed delivery.)
+        assertEquals(setOf("phone-bob", "phone-carol"), push.sent.map { it.first }.toSet())
+        val note = push.sent.first().second
+        assertEquals(listOf("message", "gang", "alice", "dinner?"), listOf(note["type"], note["title"], note["sender"], note["body"]))
+
+        // Bob replies; Alice has the app open so she gets nothing, only offline Carol does.
+        push.sent.clear()
+        client.postJson("/conversations/${group.id}/messages", SendMessageRequest("yes!"), bob.sessionToken)
+        eventually { push.sent.isNotEmpty() }
+        assertEquals(listOf("phone-carol"), push.sent.map { it.first })
     }
 
     /** Retries [condition] for up to 5 seconds (the server registers WebSockets asynchronously). */

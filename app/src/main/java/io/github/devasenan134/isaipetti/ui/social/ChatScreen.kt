@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.devasenan134.isaipetti.R
 import io.github.devasenan134.isaipetti.data.ChatMessage
 import io.github.devasenan134.isaipetti.data.SongRef
+import io.github.devasenan134.isaipetti.push.Notifications
 import io.github.devasenan134.isaipetti.ui.Nav
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.components.ScreenHeader
@@ -83,6 +84,7 @@ fun ChatScreen(conversationId: Long, nav: Nav) {
     }
     DisposableEffect(conversationId) {
         social.openConversationId = conversationId
+        Notifications.clearChat(context, conversationId)
         onDispose { social.openConversationId = null }
     }
     // Jump to the newest message when one arrives (the list is drawn bottom-up).

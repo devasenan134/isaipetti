@@ -11,8 +11,8 @@ import java.sql.ResultSet
  * when you open the app; people who are online also get them instantly through the [Hub].
  */
 class Chat(private val db: Db, private val friends: Friends, private val hub: Hub) {
-    /** Called with the message and the members who were offline, so they can get a push notification. */
-    var onOfflineRecipients: suspend (MessageDto, List<Long>) -> Unit = { _, _ -> }
+    /** Called with the message and the members who don't have the app on screen (for push notifications). */
+    var onUnseen: suspend (MessageDto, ConversationDto, List<Long>) -> Unit = { _, _, _ -> }
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -64,7 +64,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         val body = request.body.trim()
         if (body.isEmpty() && request.song == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
-        val (message, members) = db.tx {
+        val (message, members, conversation) = db.tx {
             requireMember(conversationId, me.id)
             // A DM only works while you're still friends (and they still have an account).
             val dmPartner = queryOne(
@@ -83,10 +83,10 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             // Your own message counts as read.
             update("UPDATE conversation_members SET last_read_id = ? WHERE conversation_id = ? AND user_id = ?", id, conversationId, me.id)
             val message = queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!
-            message to memberIds(conversationId)
+            Triple(message, memberIds(conversationId), conversation(conversationId, me.id))
         }
-        val offline = hub.send(members, MessageEvent(message))
-        onOfflineRecipients(message, offline - me.id)
+        hub.send(members, MessageEvent(message))
+        onUnseen(message, conversation, members.filter { it != me.id && !hub.isVisible(it) })
         return message
     }
 

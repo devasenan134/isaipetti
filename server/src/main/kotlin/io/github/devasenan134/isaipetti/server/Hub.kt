@@ -37,6 +37,10 @@ sealed interface ClientEvent
 @Serializable @SerialName("nowPlaying")
 data class NowPlayingUpdate(val song: SongRef? = null) : ClientEvent
 
+/** Whether the app is on screen. Push notifications go to people who don't have it open. */
+@Serializable @SerialName("appState")
+data class AppStateUpdate(val visible: Boolean) : ClientEvent
+
 val eventJson = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
@@ -50,9 +54,13 @@ val eventJson = Json {
 class Hub(private val friendsOf: suspend (Long) -> List<Long>) {
     private val connections = ConcurrentHashMap<Long, MutableSet<WebSocketSession>>()
     private val nowPlaying = ConcurrentHashMap<Long, SongRef>()
+    private val visible = ConcurrentHashMap<WebSocketSession, Boolean>()
     private val lock = Mutex()
 
     fun isOnline(userId: Long) = connections[userId]?.isNotEmpty() == true
+
+    /** True if one of the user's phones has the app on screen right now. */
+    fun isVisible(userId: Long) = connections[userId]?.any { visible[it] == true } == true
     fun nowPlaying(userId: Long): SongRef? = nowPlaying[userId]
 
     suspend fun connected(userId: Long, session: WebSocketSession) {
@@ -68,6 +76,7 @@ class Hub(private val friendsOf: suspend (Long) -> List<Long>) {
         val wentOffline = lock.withLock {
             val set = connections[userId] ?: return
             set.remove(session)
+            visible.remove(session)
             if (set.isEmpty()) {
                 connections.remove(userId)
                 nowPlaying.remove(userId)
@@ -79,8 +88,9 @@ class Hub(private val friendsOf: suspend (Long) -> List<Long>) {
         if (wentOffline) announcePresence(userId)
     }
 
-    suspend fun handle(userId: Long, event: ClientEvent) {
+    suspend fun handle(userId: Long, session: WebSocketSession, event: ClientEvent) {
         when (event) {
+            is AppStateUpdate -> visible[session] = event.visible
             is NowPlayingUpdate -> {
                 if (event.song == null) nowPlaying.remove(userId) else nowPlaying[userId] = event.song
                 announcePresence(userId)
@@ -91,6 +101,7 @@ class Hub(private val friendsOf: suspend (Long) -> List<Long>) {
     /** Closes every connection of a user (their account was removed). */
     suspend fun kick(userId: Long) {
         val sessions = lock.withLock { connections.remove(userId)?.toList().orEmpty() }
+        sessions.forEach { visible.remove(it) }
         nowPlaying.remove(userId)
         sessions.forEach { runCatching { it.close(CloseReason(CloseReason.Codes.NORMAL, "Account removed")) } }
     }

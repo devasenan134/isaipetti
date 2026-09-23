@@ -109,7 +109,7 @@ fun SettingsScreen(nav: Nav) {
                     confirmLogout = false
                     scope.launch {
                         app.player.stop()
-                        runCatching { app.social.api.logout() }
+                        app.social.logout()
                         app.session.clear()
                     }
                 }) { Text("Log out") }

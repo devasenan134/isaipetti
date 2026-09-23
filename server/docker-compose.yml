@@ -3,8 +3,11 @@ services:
     build: .
     container_name: isaipetti-social
     env_file: .env
+    environment:
+      - FIREBASE_KEY_FILE=/secrets/firebase-key.json
     volumes:
       - ./data:/data
+      - ./firebase-key.json:/secrets/firebase-key.json:ro  # push notifications (secret, not in git)
     ports:
       - "127.0.0.1:8095:8095"  # only reachable through the Cloudflare tunnel
     extra_hosts:

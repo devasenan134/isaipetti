@@ -11,3 +11,5 @@ local.properties
 # companion server
 server/.env
 server/data/
+server/firebase-key.json
+*firebase-adminsdk*.json

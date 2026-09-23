@@ -27,6 +27,7 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:$ktor")
     implementation("org.xerial:sqlite-jdbc:3.53.4.0")
     implementation("ch.qos.logback:logback-classic:1.6.3")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.52.0") // Firebase login for push
 
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host:$ktor")
@@ -51,4 +52,6 @@ tasks.register<JavaExec>("runDev") {
     mainClass.set("io.github.devasenan134.isaipetti.server.DevServerKt")
     environment("NAVIDROME_URL", "https://music.example.com")
     environment("DB_PATH", layout.buildDirectory.file("dev/isaipetti-social.db").get().asFile.path)
+    // Optional: real push notifications while testing (-PfirebaseKey=/path/to/key.json).
+    (project.findProperty("firebaseKey") as String?)?.let { environment("FIREBASE_KEY_FILE", it) }
 }

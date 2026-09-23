@@ -1,6 +1,10 @@
 package io.github.devasenan134.isaipetti.ui
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -20,6 +24,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +40,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.toRoute
+import io.github.devasenan134.isaipetti.PendingOpen
 import io.github.devasenan134.isaipetti.R
 import io.github.devasenan134.isaipetti.ui.home.HomeScreen
 import io.github.devasenan134.isaipetti.ui.library.AlbumScreen
@@ -97,6 +103,27 @@ fun MainScreen() {
         openSettings = { navController.navigate(SettingsRoute) },
         back = { navController.popBackStack() },
     )
+
+    // Open the chat or Friends tab from a tapped notification.
+    val app = LocalApp.current
+    val pending by app.pendingOpen.collectAsStateWithLifecycle()
+    LaunchedEffect(pending) {
+        val target = pending ?: return@LaunchedEffect
+        app.pendingOpen.value = null
+        playerOpen = false
+        currentTab = tabs.indexOfFirst { it.route == SocialRoute }
+        navController.navigate(SocialRoute) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+        }
+        if (target is PendingOpen.Chat) nav.openChat(target.conversationId)
+    }
+
+    // Android 13+ needs permission to show notifications. Ask once, when the app first opens.
+    if (Build.VERSION.SDK_INT >= 33) {
+        val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        LaunchedEffect(Unit) { ask.launch(Manifest.permission.POST_NOTIFICATIONS) }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(

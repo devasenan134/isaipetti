@@ -4,7 +4,9 @@ import android.app.Application
 import io.github.devasenan134.isaipetti.data.SessionStore
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.playback.PlayerConnection
+import io.github.devasenan134.isaipetti.push.Notifications
 import io.github.devasenan134.isaipetti.social.Social
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -26,6 +28,9 @@ class IsaipettiApp : Application() {
     lateinit var social: Social
         private set
 
+    /** A screen to open, set when the app is launched from a notification. */
+    val pendingOpen = MutableStateFlow<PendingOpen?>(null)
+
     override fun onCreate() {
         super.onCreate()
         session = SessionStore(this).also { it.load() }
@@ -38,11 +43,19 @@ class IsaipettiApp : Application() {
             appScope.launch {
                 if (session.credentials.value == rejected) {
                     player.stop()
+                    social.logout() // also stops notifications to this phone
                     session.clear("Your password was changed. Log in again with the new one.")
                 }
             }
         })
         player = PlayerConnection(this, api)
         social = Social(session, http, BuildConfig.SOCIAL_URL)
+        Notifications.createChannels(this)
     }
+}
+
+/** Where a tapped notification should take you. */
+sealed interface PendingOpen {
+    data class Chat(val conversationId: Long) : PendingOpen
+    data object Friends : PendingOpen
 }

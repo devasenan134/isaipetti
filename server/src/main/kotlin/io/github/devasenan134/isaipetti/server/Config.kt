@@ -1,5 +1,7 @@
 package io.github.devasenan134.isaipetti.server
 
+import java.io.File
+
 /** Settings come from environment variables (set in the server's .env file, never in the code). */
 data class Config(
     val port: Int,
@@ -7,6 +9,8 @@ data class Config(
     val navidromeUrl: String,
     val navidromeAdminUser: String,
     val navidromeAdminPassword: String,
+    /** Firebase service-account key (JSON file). Without it, push notifications are off. */
+    val firebaseKeyFile: String? = null,
 ) {
     companion object {
         fun fromEnv(): Config {
@@ -18,6 +22,7 @@ data class Config(
                 navidromeUrl = env("NAVIDROME_URL").trimEnd('/'),
                 navidromeAdminUser = env("NAVIDROME_ADMIN_USER", ""),
                 navidromeAdminPassword = env("NAVIDROME_ADMIN_PASSWORD", ""),
+                firebaseKeyFile = System.getenv("FIREBASE_KEY_FILE")?.takeIf { File(it).exists() },
             )
         }
     }

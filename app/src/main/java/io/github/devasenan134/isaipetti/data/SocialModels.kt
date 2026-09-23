@@ -80,3 +80,7 @@ sealed interface ClientEvent
 
 @Serializable @SerialName("nowPlaying")
 data class NowPlayingUpdate(val song: SongRef? = null) : ClientEvent
+
+/** Tells the server whether the app is on screen, so it knows when to send push notifications instead. */
+@Serializable @SerialName("appState")
+data class AppStateUpdate(val visible: Boolean) : ClientEvent

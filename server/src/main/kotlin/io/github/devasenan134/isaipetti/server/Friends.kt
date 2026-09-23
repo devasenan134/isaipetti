@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
  */
 class Friends(private val db: Db) {
     lateinit var hub: Hub
+    var push: Push? = null
 
     suspend fun friendIds(userId: Long): List<Long> = db.tx {
         query("SELECT friend_id FROM friendships WHERE user_id = ?", userId) { it.getLong(1) }
@@ -58,7 +59,10 @@ class Friends(private val db: Db) {
             return AddFriendResponse("friends")
         }
         val isNew = db.tx { update("INSERT OR IGNORE INTO friend_requests VALUES (?, ?, ?)", me.id, target.id, now()) } > 0
-        if (isNew) hub.send(listOf(target.id), FriendRequestEvent(me))
+        if (isNew) {
+            hub.send(listOf(target.id), FriendRequestEvent(me))
+            if (!hub.isVisible(target.id)) push?.friendRequest(me, target.id)
+        }
         return AddFriendResponse("requested")
     }
 
@@ -72,6 +76,7 @@ class Friends(private val db: Db) {
             update("INSERT OR IGNORE INTO friendships VALUES (?, ?, ?)", fromId, me.id, t)
         }
         announceFriendship(me.id, fromId)
+        if (!hub.isVisible(fromId)) push?.friendAccepted(me, fromId)
     }
 
     suspend fun decline(me: UserDto, fromId: Long) {

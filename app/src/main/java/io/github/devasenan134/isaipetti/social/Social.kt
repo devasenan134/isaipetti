@@ -1,6 +1,7 @@
 package io.github.devasenan134.isaipetti.social
 
 import android.util.Log
+import io.github.devasenan134.isaipetti.data.AppStateUpdate
 import io.github.devasenan134.isaipetti.data.ChatMessage
 import io.github.devasenan134.isaipetti.data.ClientEvent
 import io.github.devasenan134.isaipetti.data.Conversation
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import com.google.firebase.messaging.FirebaseMessaging
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -96,6 +98,39 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
 
     fun setForeground(value: Boolean) {
         foreground.value = value
+        sendEvent(AppStateUpdate(value))
+    }
+
+    private var pushToken: String? = null
+    private var registeredToken: String? = null
+
+    /** Firebase's address for this phone (it can change); registered with the server once logged in. */
+    fun onPushToken(token: String) {
+        pushToken = token
+        scope.launch { registerDevice() }
+    }
+
+    private suspend fun registerDevice() {
+        val token = pushToken ?: fetchPushToken() ?: return
+        pushToken = token
+        if (session.social.value == null || token == registeredToken) return
+        quietly {
+            api.registerDevice(token)
+            registeredToken = token
+        }
+    }
+
+    private suspend fun fetchPushToken(): String? = suspendCancellableCoroutine { continuation ->
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            continuation.resume(if (task.isSuccessful) task.result else null)
+        }
+    }
+
+    /** Logs out of the friends server and stops notifications to this phone. */
+    suspend fun logout() {
+        quietly { pushToken?.let { api.unregisterDevice(it) } }
+        quietly { api.logout() }
+        registeredToken = null
     }
 
     /** Called by the playback service whenever the song or play/pause changes. */
@@ -131,6 +166,7 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
             try {
                 ensureLoggedIn()
                 refreshAll()
+                registerDevice()
                 runSocket()
                 backoff = 2_000L
             } catch (e: CancellationException) {
@@ -171,6 +207,7 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     scope.launch {
                         _status.value = Status.Online
+                        sendEvent(AppStateUpdate(foreground.value))
                         nowPlaying?.let { sendEvent(NowPlayingUpdate(it)) }
                     }
                 }
