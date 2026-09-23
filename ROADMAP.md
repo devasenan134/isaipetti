@@ -107,7 +107,10 @@ Features not yet agreed. Add freely.
 
 | Idea | Area | Notes |
 |---|---|---|
-| _none yet_ | | |
+| Option to have a liked songs section | | |
+| Option to like an entire albums or playlist | | want to have the liked songs section and albums, playlist listed on a new separate page like Your library |
+| Lets move the movies and Composers page on the app to search section like in spotify | | |
+| After moving those pages, lets have the Your library down there, so it will be Home, Search, your library, Friends | | |
 
 ---
 
