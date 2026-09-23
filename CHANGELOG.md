@@ -7,6 +7,17 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.5.2 (unreleased)
+
+### New
+- **Artists in Search.** The browse boxes are now a 2×2 grid: Movies, Composers, **Artists** and Playlists. Artists lists every singer A to Z (loading more as you scroll). A singer's page shows the songs they sing on, with Play and Shuffle. Search results show composers and artists separately.
+- **Edit your playlists.** On a playlist you made, ⋮ lets you **Rename** it, make it **Public** or **Private**, or **Delete** it. Deleting asks twice, because it can't be undone. Each song's ⋮ menu has **Remove from this playlist**.
+- **Save to playlists, like Spotify.** The player has a "playlist +" button next to the ♡ (also **Add to playlist** in any song's ⋮ menu). It opens **Save to**: Liked songs and each of your playlists, ticked where the song already is. Tick or untick and tap **Done** to add or remove it everywhere at once. **New playlist** is at the top.
+- **Create a playlist from Your Library** with the **+** at the top. The new playlist opens right away.
+- **Live suggestions while typing.** Matching past searches and names from the results appear under the search bar as you type; tap one to search for it. Results also update faster.
+
+---
+
 ## 0.5.1 (2026-09-23): Playlists in Search, song details and what's new
 
 ### New
