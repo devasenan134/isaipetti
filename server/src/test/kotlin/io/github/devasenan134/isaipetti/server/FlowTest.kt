@@ -345,6 +345,54 @@ class FlowTest {
     }
 
     @Test
+    fun `leaving a group and deleting it for everyone`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val (alice, bob, carol) = listOf("alice", "bob", "carol").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id, carol.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        assertEquals(alice.user.id, group.createdBy)
+        val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
+        client.postJson("/conversations/${group.id}/messages", SendMessageRequest("hi all"), alice.sessionToken)
+
+        // Only groups can be left, and only the owner can delete one for everyone.
+        assertEquals(HttpStatusCode.BadRequest, client.postJson("/conversations/${dm.id}/leave", Unit, alice.sessionToken).status)
+        assertEquals(HttpStatusCode.Forbidden, client.delete("/conversations/${group.id}/everyone") { bearerAuth(bob.sessionToken) }.status)
+
+        // Alice (the owner) leaves: the others see it in the chat, and Bob becomes the owner.
+        assertEquals(HttpStatusCode.NoContent, client.postJson("/conversations/${group.id}/leave", Unit, alice.sessionToken).status)
+        assertEquals(listOf(dm.id), client.getJson<List<ConversationDto>>("/conversations", alice).map { it.id })
+        val left = client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", bob).last()
+        assertEquals(Triple("alice", "left the group", true), Triple(left.sender.username, left.body, left.system))
+        val now = client.getJson<List<ConversationDto>>("/conversations", bob).first { it.id == group.id }
+        assertEquals(bob.user.id to setOf("bob", "carol"), now.createdBy to now.members.map { it.username }.toSet())
+
+        // Bob deletes it for everyone: Carol is told live, and it's gone with its messages.
+        val carolWs = client.webSocketSession("/ws?token=${carol.sessionToken}")
+        eventually { client.friends(alice).any { it.user.id == carol.user.id && it.online } }
+        assertEquals(HttpStatusCode.NoContent, client.delete("/conversations/${group.id}/everyone") { bearerAuth(bob.sessionToken) }.status)
+        while (true) {
+            val event = carolWs.nextEvent()
+            if (event is ConversationRemovedEvent) { assertEquals(group.id, event.conversationId); break }
+        }
+        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", carol))
+        assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${group.id}/messages") { bearerAuth(bob.sessionToken) }.status)
+
+        // When the last person leaves a group, it's deleted.
+        val duo = client.postJson("/conversations/group", NewGroupRequest("duo", listOf(bob.user.id)), alice.sessionToken).body<ConversationDto>()
+        client.postJson("/conversations/${duo.id}/leave", Unit, alice.sessionToken)
+        client.postJson("/conversations/${duo.id}/leave", Unit, bob.sessionToken)
+        assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${duo.id}/messages") { bearerAuth(bob.sessionToken) }.status)
+    }
+
+    @Test
     fun `password rules`() {
         fun problem(p: String, user: String = "alice") = PasswordRules.check(p, user).problem
         assertEquals("Use at least 10 characters", problem("short1!"))

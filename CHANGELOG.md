@@ -7,6 +7,22 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.4.2 (unreleased)
+
+### New
+- **Leave a group.** In a group chat, tap ⋮ → **Leave group**. The others see "… left the group" in the chat. If the group's owner leaves, the longest-standing member becomes the owner; when the last person leaves, the group is deleted.
+- **Delete a group for everyone.** The group's owner (whoever created it) can tap ⋮ → **Delete for everyone**. The group and all its messages disappear for every member, and anyone who has it open is taken back to their chats.
+- **Share music from a chat.** The music button next to the message box opens a list of what's playing and your recently played songs. Pick one and send it whole, or turn on "Share only a part" to choose a start and end first. Recently played songs are remembered on your phone and cleared when you log out.
+
+### Improved
+- The share sheet only lists chats you can still message.
+
+### Server
+- New: `POST /conversations/{id}/leave` and `DELETE /conversations/{id}/everyone` (owner only), with a `conversationRemoved` live event.
+- Chats carry their owner (`createdBy`); messages can be system lines (`system`), such as "left the group". Leaving or deleting a group also ends its listen-together session.
+
+---
+
 ## 0.4.1 (2026-09-23): Feature requests
 
 ### New

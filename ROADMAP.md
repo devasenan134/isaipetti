@@ -83,7 +83,8 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Leave a group, delete a group for everyone | Server + App | P1 | 0.4.2 | Built | Owner deletes for everyone; ownership passes on when the owner leaves |
+| Share recent songs or a part of one from the chat's music button | App | P2 | 0.4.2 | Built | Recently played songs are kept on the phone |
 
 ---
 

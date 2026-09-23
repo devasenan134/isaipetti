@@ -88,6 +88,15 @@ class ListenTogether(private val hub: Hub, private val membersOf: suspend (Long)
         if (changed) announce(conversationId)
     }
 
+    /** Someone left a chat: they're out of its session. */
+    suspend fun leftChat(userId: Long, conversationId: Long) = leave(userId, conversationId)
+
+    /** A chat was deleted: its session ends for everyone. */
+    suspend fun ended(conversationId: Long, members: List<Long>) {
+        val had = synchronized(sessions) { sessions.remove(conversationId) != null }
+        if (had) hub.send(members, ListenSessionEvent(conversationId, emptyList()))
+    }
+
     /** Leaves every session (the user went offline, or joined another one). */
     suspend fun leaveAll(userId: Long, except: Long? = null) {
         val ids = synchronized(sessions) { sessions.filter { (id, s) -> id != except && userId in s.listeners }.keys.toList() }

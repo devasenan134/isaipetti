@@ -14,6 +14,10 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
     /** Who is listening together in a chat (set once listen-together is running). */
     var listenersOf: (Long) -> List<Long> = { emptyList() }
 
+    /** Called when someone leaves a group, and when a group is deleted (to end listen-together there). */
+    var onLeft: suspend (userId: Long, conversationId: Long) -> Unit = { _, _ -> }
+    var onRemoved: suspend (conversationId: Long, members: List<Long>) -> Unit = { _, _ -> }
+
     /** Called with the message and the members who don't have the app on screen (for push notifications). */
     var onUnseen: suspend (MessageDto, ConversationDto, List<Long>) -> Unit = { _, _, _ -> }
 
@@ -129,6 +133,53 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         if (stillShown == 0) update("DELETE FROM conversations WHERE id = ?", conversationId)
     }
 
+    /**
+     * Leaves a group. The others see "… left the group". If the owner leaves, the longest-standing
+     * member becomes the owner; when the last person leaves, the group is deleted.
+     */
+    suspend fun leave(me: UserDto, conversationId: Long) {
+        val (message, members) = db.tx {
+            requireMember(conversationId, me.id)
+            requireGroup(conversationId, "You can only leave group chats")
+            update("DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?", conversationId, me.id)
+            val remaining = memberIds(conversationId)
+            if (remaining.isEmpty()) {
+                update("DELETE FROM conversations WHERE id = ?", conversationId)
+                return@tx null to emptyList()
+            }
+            update(
+                """UPDATE conversations SET created_by = (SELECT user_id FROM conversation_members WHERE conversation_id = ? ORDER BY rowid LIMIT 1)
+                   WHERE id = ? AND created_by = ?""",
+                conversationId, conversationId, me.id,
+            )
+            val id = insert(
+                "INSERT INTO messages (conversation_id, sender_id, body, created_at, system) VALUES (?, ?, 'left the group', ?, 1)",
+                conversationId, me.id, now(),
+            )
+            queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() } to remaining
+        }
+        onLeft(me.id, conversationId)
+        message?.let { hub.send(members, MessageEvent(it)) }
+    }
+
+    /** Deletes a group and all its messages for every member. Only its owner can. */
+    suspend fun deleteForEveryone(me: UserDto, conversationId: Long) {
+        val members = db.tx {
+            requireMember(conversationId, me.id)
+            requireGroup(conversationId, "Only group chats can be deleted for everyone")
+            val owner = queryOne("SELECT created_by FROM conversations WHERE id = ?", conversationId) { it.getLong(1) }
+            if (owner != me.id) throw ApiError(HttpStatusCode.Forbidden, "Only the group's owner can delete it for everyone")
+            memberIds(conversationId).also { update("DELETE FROM conversations WHERE id = ?", conversationId) }
+        }
+        onRemoved(conversationId, members)
+        hub.send(members, ConversationRemovedEvent(conversationId))
+    }
+
+    private fun Connection.requireGroup(conversationId: Long, error: String) {
+        val kind = queryOne("SELECT kind FROM conversations WHERE id = ?", conversationId) { it.getString(1) }
+        if (kind != "group") throw ApiError(HttpStatusCode.BadRequest, error)
+    }
+
     private fun checkClip(song: SongRef) {
         if (song.clipStartMs == null && song.clipEndMs == null) return
         val start = song.clipStartMs ?: -1
@@ -141,7 +192,9 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         queryOne("SELECT cleared_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?", conversationId, userId) { it.getLong(1) } ?: 0
 
     private fun Connection.conversation(id: Long, viewerId: Long): ConversationDto {
-        val (kind, name) = queryOne("SELECT kind, name FROM conversations WHERE id = ?", id) { it.getString(1) to it.getString(2) }!!
+        val (kind, name, owner) = queryOne("SELECT kind, name, created_by FROM conversations WHERE id = ?", id) {
+            Triple(it.getString(1), it.getString(2), it.getLong(3))
+        }!!
         val members = query(
             "SELECT u.* FROM conversation_members cm JOIN users u ON u.id = cm.user_id WHERE cm.conversation_id = ?", id,
         ) { it.toUser() }
@@ -159,7 +212,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         } else {
             others.isNotEmpty()
         }
-        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id))
+        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id), createdBy = owner)
     }
 
     /** Who is in a chat (for listen-together). */
@@ -180,6 +233,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         body = getString("body"),
         song = getString("song_json")?.let { json.decodeFromString(SongRef.serializer(), it) },
         createdAt = getLong("created_at"),
+        system = getInt("system") == 1,
     )
 
     private companion object {

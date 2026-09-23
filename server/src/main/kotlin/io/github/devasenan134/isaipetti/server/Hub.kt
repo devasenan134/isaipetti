@@ -30,6 +30,10 @@ data class FriendAddedEvent(val friend: FriendDto) : Event
 @Serializable @SerialName("friendRemoved")
 data class FriendRemovedEvent(val userId: Long) : Event
 
+/** A group was deleted for everyone. */
+@Serializable @SerialName("conversationRemoved")
+data class ConversationRemovedEvent(val conversationId: Long) : Event
+
 /** Events the app sends to the server. */
 @Serializable
 sealed interface ClientEvent
