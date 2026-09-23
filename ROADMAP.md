@@ -79,7 +79,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Feature requests from Settings | Server + App | P2 | 0.4.1 | Built | "Feedback" card with Report a bug / Suggest a feature |
 
 ---
 

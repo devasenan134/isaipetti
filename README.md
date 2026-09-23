@@ -6,7 +6,7 @@ A music app for your own music, shared with your friends. Isaipetti streams from
 - **Friends:** invite codes, friend requests, live presence and now-playing, direct messages and group chats, push notifications
 - **Sharing:** send a song, or pick a start and end point and send just that part
 - **Listen together:** everyone in a chat's session hears the same music, and anyone can play, pause, skip or change the queue
-- **Staying current:** the app finds new releases by itself, and bugs can be reported from Settings
+- **Staying current:** the app finds new releases by itself, and bugs and feature ideas can be sent from Settings
 
 ## The three parts
 

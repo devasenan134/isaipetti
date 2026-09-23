@@ -7,6 +7,16 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.4.1 (unreleased)
+
+### New
+- **Suggest a feature** from Settings. The bug report card is now **Feedback**, with **Report a bug** and **Suggest a feature**. Both become issues on the app's GitHub page, labelled `bug` or `enhancement`. Feature requests leave out phone details unless you tick the box.
+
+### Server
+- `POST /bug-reports` takes an optional `kind` (`bug` or `feature`); older apps keep sending bugs.
+
+---
+
 ## 0.4.0 (2026-09-23): Listen together, clips, updates and a public release
 
 **One-time step: uninstall the old Isaipetti before installing this version.** It has a new app ID and signing key, so Android treats it as a different app. After installing, log in with your music server and friends server addresses.

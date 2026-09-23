@@ -296,11 +296,11 @@ class FlowTest {
     }
 
     @Test
-    fun `bug reports become GitHub issues`() = testApplication {
-        val opened = mutableListOf<Pair<String, String>>()
+    fun `bug reports and feature requests become GitHub issues`() = testApplication {
+        val opened = mutableListOf<Triple<String, String, List<String>>>()
         val tracker = object : IssueTracker {
-            override suspend fun open(title: String, body: String) =
-                BugReportResponse(opened.size + 1L, "https://github.com/x/y/issues/${opened.size + 1}").also { opened += title to body }
+            override suspend fun open(title: String, body: String, labels: List<String>) =
+                BugReportResponse(opened.size + 1L, "https://github.com/x/y/issues/${opened.size + 1}").also { opened += Triple(title, body, labels) }
         }
         application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome(), issueTracker = tracker) }
         val client = createClient { install(ContentNegotiation) { json(eventJson) } }
@@ -309,15 +309,22 @@ class FlowTest {
         val report = BugReportRequest("Lyrics stop scrolling", "After skipping twice the lyrics freeze.", "Isaipetti 0.3.4, Pixel 8, Android 16")
         val created = client.postJson("/bug-reports", report, alice.sessionToken).body<BugReportResponse>()
         assertEquals(1L, created.number)
-        val (title, body) = opened.single()
+        val (title, body, labels) = opened.single()
         assertEquals("Lyrics stop scrolling", title)
+        assertEquals(listOf("bug"), labels)
         assertTrue("After skipping twice" in body && "Pixel 8" in body)
         // The issue is public, so it doesn't say who sent it.
         assertTrue("alice" !in body)
 
-        // Empty reports are refused, and nobody can send more than 5 an hour.
+        // Feature requests are labelled as enhancements.
+        client.postJson("/bug-reports", BugReportRequest("Sleep timer", "Stop the music after 30 minutes.", kind = "feature"), alice.sessionToken)
+        assertEquals(listOf("enhancement"), opened.last().third)
+        assertTrue("Requested from the app" in opened.last().second)
+
+        // Empty or unknown feedback is refused, and nobody can send more than 5 an hour.
         assertEquals(HttpStatusCode.BadRequest, client.postJson("/bug-reports", BugReportRequest("x", "y"), alice.sessionToken).status)
-        repeat(4) { client.postJson("/bug-reports", report, alice.sessionToken) }
+        assertEquals(HttpStatusCode.BadRequest, client.postJson("/bug-reports", report.copy(kind = "rant"), alice.sessionToken).status)
+        repeat(3) { client.postJson("/bug-reports", report, alice.sessionToken) }
         assertEquals(HttpStatusCode.TooManyRequests, client.postJson("/bug-reports", report, alice.sessionToken).status)
         assertEquals(HttpStatusCode.Unauthorized, client.postJson("/bug-reports", report).status)
     }

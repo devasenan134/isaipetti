@@ -224,7 +224,7 @@ fun Application.isaipettiSocial(
             }
         }
     }
-    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush || pushConfig == null) "off" else "on"}, bug reports ${if (issueTracker == null) "off" else "on"}")
+    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush || pushConfig == null) "off" else "on"}, feedback ${if (issueTracker == null) "off" else "on"}")
 }
 
 private fun ApplicationCall.me(): UserDto = principal<UserDto>() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")

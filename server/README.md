@@ -44,9 +44,9 @@ Notifications go through Firebase Cloud Messaging, with **your own** Firebase pr
    The log line now says `push on`.
 5. Recommended: in the [Google Cloud console](https://console.cloud.google.com/apis/credentials), open the project's **Android key (auto created by Firebase)** and under *Application restrictions* allow only your app's package name and SHA-1.
 
-## Bug reports (optional)
+## Bug reports and feature requests (optional)
 
-The app's *Settings → Report a bug* creates GitHub issues through this server, so the token never ships inside the app. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for just your repository with only **Issues: Read and write**, then set `GITHUB_REPO=owner/repo` and `GITHUB_TOKEN=...` in `.env` and restart. Issues don't say who sent them.
+The app's *Settings → Feedback* (**Report a bug** and **Suggest a feature**) creates GitHub issues through this server, labelled `bug` or `enhancement`, so the token never ships inside the app. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for just your repository with only **Issues: Read and write**, then set `GITHUB_REPO=owner/repo` and `GITHUB_TOKEN=...` in `.env` and restart; the log line then says `feedback on`. Issues don't say who sent them.
 
 ## Updating
 
