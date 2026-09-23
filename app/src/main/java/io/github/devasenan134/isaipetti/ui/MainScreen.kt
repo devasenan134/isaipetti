@@ -5,9 +5,15 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +25,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -34,7 +41,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -168,17 +178,27 @@ fun MainScreen() {
                 }
             },
         ) { padding ->
-            NavHost(navController, startDestination = HomeRoute, modifier = Modifier.padding(padding)) {
-                composable<HomeRoute> { HomeScreen(nav) }
-                composable<AlbumsRoute> { AlbumsScreen(nav) }
-                composable<ArtistsRoute> { ArtistsScreen(nav) }
-                composable<SearchRoute> { SearchScreen(nav) }
-                composable<AlbumRoute> { AlbumScreen(it.toRoute<AlbumRoute>().id, nav) }
-                composable<ArtistRoute> { ArtistScreen(it.toRoute<ArtistRoute>().id, nav) }
-                composable<PlaylistRoute> { PlaylistScreen(it.toRoute<PlaylistRoute>().id, nav) }
-                composable<SocialRoute> { SocialScreen(nav) }
-                composable<ChatRoute> { ChatScreen(it.toRoute<ChatRoute>().id, nav) }
-                composable<SettingsRoute> { SettingsScreen(nav) }
+            // Opening a screen slides it in from the right; going back slides it away again, following
+            // the finger during Android's back gesture. Switching tabs just fades.
+            NavHost(
+                navController,
+                startDestination = HomeRoute,
+                modifier = Modifier.padding(padding),
+                enterTransition = { if (targetState.isTab()) fadeIn() else slideInHorizontally { it } },
+                exitTransition = { if (targetState.isTab()) fadeOut() else slideOutHorizontally { -it / 4 } },
+                popEnterTransition = { slideInHorizontally { -it / 4 } },
+                popExitTransition = { slideOutHorizontally { it } },
+            ) {
+                screen<HomeRoute> { HomeScreen(nav) }
+                screen<AlbumsRoute> { AlbumsScreen(nav) }
+                screen<ArtistsRoute> { ArtistsScreen(nav) }
+                screen<SearchRoute> { SearchScreen(nav) }
+                screen<AlbumRoute> { AlbumScreen(it.toRoute<AlbumRoute>().id, nav) }
+                screen<ArtistRoute> { ArtistScreen(it.toRoute<ArtistRoute>().id, nav) }
+                screen<PlaylistRoute> { PlaylistScreen(it.toRoute<PlaylistRoute>().id, nav) }
+                screen<SocialRoute> { SocialScreen(nav) }
+                screen<ChatRoute> { ChatScreen(it.toRoute<ChatRoute>().id, nav) }
+                screen<SettingsRoute> { SettingsScreen(nav) }
             }
         }
 
@@ -198,4 +218,13 @@ fun MainScreen() {
         }
         BackHandler(enabled = playerOpen) { playerOpen = false }
     }
+}
+
+private fun NavBackStackEntry.isTab() = tabs.any { destination.hasRoute(it.route::class) }
+
+/** A destination with a solid background, so screens don't show through each other while sliding. */
+private inline fun <reified T : Any> NavGraphBuilder.screen(
+    noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) = composable<T> {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { content(it) }
 }
