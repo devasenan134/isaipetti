@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.4.0 (app `versionCode` 8)
+- **Current version:** 0.4.1 (app `versionCode` 9)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,10 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.4.1: Feature requests
+- Settings has a Feedback card: Report a bug and Suggest a feature, both posted as GitHub issues
+- The server forgets notification registrations from old app versions
 
 ### 0.4.0: Listen together, clips, updates and a public release
 - Listen together in any chat, with everyone in control
@@ -79,7 +83,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Feature requests from Settings | Server + App | P2 | 0.4.1 | Built | "Feedback" card with Report a bug / Suggest a feature |
+| _nothing right now_ | | | | | |
 
 ---
 

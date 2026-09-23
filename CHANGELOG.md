@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.4.1 (unreleased)
+## 0.4.1 (2026-09-23): Feature requests
 
 ### New
 - **Suggest a feature** from Settings. The bug report card is now **Feedback**, with **Report a bug** and **Suggest a feature**. Both become issues on the app's GitHub page, labelled `bug` or `enhancement`. Feature requests leave out phone details unless you tick the box.
