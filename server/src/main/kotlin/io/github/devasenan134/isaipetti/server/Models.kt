@@ -59,6 +59,8 @@ data class MessageDto(
     val body: String,
     val song: SongRef? = null,
     val createdAt: Long,
+    /** A line about the chat itself ("left the group"), from [sender]. */
+    val system: Boolean = false,
 )
 
 @Serializable
@@ -73,6 +75,8 @@ data class ConversationDto(
     val canMessage: Boolean = true,
     /** Who is listening together in this chat right now (empty if nobody). */
     val listeners: List<Long> = emptyList(),
+    /** The group's owner: the only one who can delete it for everyone. */
+    val createdBy: Long? = null,
 )
 
 @Serializable data class NewDmRequest(val userId: Long)

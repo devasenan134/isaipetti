@@ -66,6 +66,8 @@ fun Application.isaipettiSocial(
     val chat = Chat(db, friends, hub)
     val listen = ListenTogether(hub, chat::members)
     chat.listenersOf = listen::listeners
+    chat.onLeft = listen::leftChat
+    chat.onRemoved = listen::ended
     val push = Push(db, pushSender)
     friends.push = push
     chat.onUnseen = push::newMessage
@@ -215,6 +217,14 @@ fun Application.isaipettiSocial(
                 post("/{id}/messages") { call.respond(chat.send(call.me(), call.longParam("id"), call.receive())) }
                 delete("/{id}") {
                     chat.delete(call.me().id, call.longParam("id"))
+                    call.respond(HttpStatusCode.NoContent)
+                }
+                post("/{id}/leave") {
+                    chat.leave(call.me(), call.longParam("id"))
+                    call.respond(HttpStatusCode.NoContent)
+                }
+                delete("/{id}/everyone") {
+                    chat.deleteForEveryone(call.me(), call.longParam("id"))
                     call.respond(HttpStatusCode.NoContent)
                 }
                 post("/{id}/read") {
