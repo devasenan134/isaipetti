@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -129,6 +129,17 @@ class Db(path: String) {
 
         // Lines like "Alice left the group", shown in the chat but not as someone's message.
         val SCHEMA_V5 = "ALTER TABLE messages ADD COLUMN system INTEGER NOT NULL DEFAULT 0"
+
+        // Playlists people liked (Navidrome can't like playlists itself).
+        val SCHEMA_V6 = """
+            CREATE TABLE liked_playlists (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                playlist_id TEXT NOT NULL,
+                playlist_json TEXT NOT NULL,
+                liked_at INTEGER NOT NULL,
+                PRIMARY KEY (user_id, playlist_id)
+            )
+        """.trimIndent()
     }
 }
 

@@ -10,6 +10,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
@@ -401,6 +402,32 @@ class FlowTest {
         client.postJson("/conversations/${duo.id}/leave", Unit, alice.sessionToken)
         client.postJson("/conversations/${duo.id}/leave", Unit, bob.sessionToken)
         assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${duo.id}/messages") { bearerAuth(bob.sessionToken) }.status)
+    }
+
+    @Test
+    fun `liked playlists are saved per person`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val alice = client.login("alice")
+        val bob = client.login("bob")
+        suspend fun like(session: SessionResponse, ref: PlaylistRef) =
+            client.put("/likes/playlists") { bearerAuth(session.sessionToken); contentType(ContentType.Application.Json); setBody(ref) }.status
+
+        assertEquals(HttpStatusCode.NoContent, like(alice, PlaylistRef("pl1", "Road trip", "cov1", 12)))
+        Thread.sleep(5) // distinct like times, newest first
+        assertEquals(HttpStatusCode.NoContent, like(alice, PlaylistRef("pl2", "Rain", null, 30)))
+        // Liking again refreshes the details but keeps its place.
+        like(alice, PlaylistRef("pl1", "Road trip 2026", "cov1", 14))
+        assertEquals(
+            listOf(PlaylistRef("pl2", "Rain", null, 30), PlaylistRef("pl1", "Road trip 2026", "cov1", 14)),
+            client.getJson<List<PlaylistRef>>("/likes/playlists", alice),
+        )
+        // Each person has their own, and unliking removes it.
+        assertEquals(emptyList(), client.getJson<List<PlaylistRef>>("/likes/playlists", bob))
+        client.delete("/likes/playlists/pl2") { bearerAuth(alice.sessionToken) }
+        assertEquals(listOf("pl1"), client.getJson<List<PlaylistRef>>("/likes/playlists", alice).map { it.id })
+        assertEquals(HttpStatusCode.BadRequest, like(alice, PlaylistRef("")))
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/likes/playlists").status)
     }
 
     @Test

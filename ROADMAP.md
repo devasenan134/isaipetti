@@ -90,7 +90,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 | Groups and people shown separately in the share sheet | App | P2 | 0.5.0 | Built | Group icon and members |
 | Search history and recently played on the Search page | App | P2 | 0.5.0 | Built | History kept on the phone; recent movies from Navidrome |
 | Home / Search / Your Library / Friends layout; Movies and Composers inside Search | App | P1 | 0.5.0 | Built | Browse boxes plus recently played songs, movies and composers |
-| Liked songs, liked movies and playlists; Your Library page | App | P1 | 0.5.0 | Built | Songs and movies starred in Navidrome; liked playlists kept on the phone |
+| Liked songs, liked movies and playlists; Your Library page | App | P1 | 0.5.0 | Built | Songs and movies starred in Navidrome; liked playlists saved per person on the friends server |
 | Notification when friends start listening together | Server + App | P2 | 0.5.0 | Built | Only when the app isn't open; at most once per chat every 30 minutes |
 
 ---
