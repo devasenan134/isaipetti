@@ -3,13 +3,17 @@ services:
     build: .
     container_name: isaipetti-social
     env_file: .env
+    # Runs as your own user (not root); data/ and secrets/ must belong to it. Set PUID/PGID in .env if yours isn't 1000.
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
+      - DB_PATH=/data/isaipetti-social.db
       - FIREBASE_KEY_FILE=/secrets/firebase-key.json
+      - FIREBASE_APP_CONFIG=/secrets/google-services.json
     volumes:
       - ./data:/data
-      - ./firebase-key.json:/secrets/firebase-key.json:ro  # push notifications (secret, not in git)
+      - ./secrets:/secrets:ro  # optional Firebase files for push notifications; never commit them
     ports:
-      - "127.0.0.1:8095:8095"  # only reachable through the Cloudflare tunnel
+      - "127.0.0.1:8095:8095"  # only this machine; put HTTPS (reverse proxy or tunnel) in front
     extra_hosts:
       - "host.docker.internal:host-gateway"  # lets the container reach Navidrome on the host
     restart: unless-stopped

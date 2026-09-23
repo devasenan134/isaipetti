@@ -323,6 +323,21 @@ class FlowTest {
     }
 
     @Test
+    fun `the app gets Firebase settings from the server`() = testApplication {
+        val file = File.createTempFile("google-services", ".json").apply { deleteOnExit() }
+        file.writeText("""{"project_info":{"project_number":"123","project_id":"demo-proj"},"client":[
+            {"client_info":{"mobilesdk_app_id":"1:123:android:other","android_client_info":{"package_name":"some.other.app"}},"api_key":[{"current_key":"k-other"}]},
+            {"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"io.github.devasenan134.isaipetti"}},"api_key":[{"current_key":"k-app"}]}]}""")
+        application {
+            isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome(), FakePush(), pushConfig = PushConfig.fromGoogleServices(file.path))
+        }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val alice = client.login("alice")
+        assertEquals(PushConfig("demo-proj", "1:123:android:abc", "k-app", "123"), client.getJson<PushConfig>("/push/config", alice))
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/push/config").status)
+    }
+
+    @Test
     fun `password rules`() {
         fun problem(p: String, user: String = "alice") = PasswordRules.check(p, user).problem
         assertEquals("Use at least 10 characters", problem("short1!"))

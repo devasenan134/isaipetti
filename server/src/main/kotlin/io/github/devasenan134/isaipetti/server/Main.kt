@@ -56,6 +56,7 @@ fun Application.isaipettiSocial(
     navidrome: Navidrome = Navidrome(config),
     pushSender: PushSender = config.firebaseKeyFile?.let { FcmSender(it) } ?: NoPush,
     issueTracker: IssueTracker? = config.githubToken?.let { token -> config.githubRepo?.let { GitHubIssues(it, token) } },
+    pushConfig: PushConfig? = config.firebaseAppConfigFile?.let { PushConfig.fromGoogleServices(it) },
 ) {
     val db = Db(config.dbPath)
     val friends = Friends(db)
@@ -160,6 +161,12 @@ fun Application.isaipettiSocial(
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            // Firebase settings for the app, so that nothing about this server's project is built into it.
+            get("/push/config") {
+                if (pushConfig == null || pushSender is NoPush) call.respond(HttpStatusCode.NotFound, ErrorResponse("Push notifications are off"))
+                else call.respond(pushConfig)
+            }
+
             route("/devices") {
                 post {
                     push.register(call.me().id, call.receive<DeviceRequest>().token)
@@ -217,7 +224,7 @@ fun Application.isaipettiSocial(
             }
         }
     }
-    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush) "off" else "on"}, bug reports ${if (issueTracker == null) "off" else "on"}")
+    log.info("isaipetti-social ready on port ${config.port}, Navidrome at ${config.navidromeUrl}, push ${if (pushSender is NoPush || pushConfig == null) "off" else "on"}, bug reports ${if (issueTracker == null) "off" else "on"}")
 }
 
 private fun ApplicationCall.me(): UserDto = principal<UserDto>() ?: throw ApiError(HttpStatusCode.Unauthorized, "Not logged in")

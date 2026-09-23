@@ -13,7 +13,6 @@ okhttp = "5.5.0"
 serialization = "1.11.0"
 coil = "3.6.3"
 firebaseBom = "34.19.0"
-googleServices = "4.5.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -41,4 +40,3 @@ firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

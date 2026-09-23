@@ -70,7 +70,12 @@ fun SettingsScreen(nav: Nav) {
                         Text(displayName, style = MaterialTheme.typography.titleLarge)
                         Text("@$username", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            credentials?.server?.removePrefix("https://").orEmpty(),
+                            "Music: " + credentials?.server?.removePrefix("https://").orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Friends: " + (credentials?.socialServer?.removePrefix("https://") ?: "not set"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -1,7 +1,6 @@
 package io.github.devasenan134.isaipetti.ui.login
 
 import androidx.compose.foundation.layout.Arrangement
-import io.github.devasenan134.isaipetti.BuildConfig
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,16 +39,17 @@ import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.components.PasswordStrength
 import kotlinx.coroutines.launch
 
-/** The Navidrome server filled in by default (set when building; empty if none). */
-private val DEFAULT_SERVER = BuildConfig.DEFAULT_SERVER
-
-/** Log in with an existing Navidrome account, or sign up with an invite code from a friend. */
+/**
+ * Log in with an existing Navidrome account, or sign up with an invite code from a friend.
+ * No server addresses are built into the app: whoever runs the servers tells friends what to type.
+ */
 @Composable
 fun LoginScreen() {
     val app = LocalApp.current
     val scope = rememberCoroutineScope()
     var signingUp by rememberSaveable { mutableStateOf(false) }
-    var server by rememberSaveable { mutableStateOf(DEFAULT_SERVER) }
+    var server by rememberSaveable { mutableStateOf("") }
+    var friendsServer by rememberSaveable { mutableStateOf("") }
     var inviteCode by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
     var displayName by rememberSaveable { mutableStateOf("") }
@@ -62,10 +62,11 @@ fun LoginScreen() {
         error = null
         scope.launch {
             try {
-                val credentials = SubsonicApi.credentialsFor(server, username, password)
+                val social = friendsServer.takeIf { it.isNotBlank() }?.let(SubsonicApi::normalizeServer)
+                val credentials = SubsonicApi.credentialsFor(server, username, password).copy(socialServer = social)
                 if (signingUp) {
                     // The friends server creates the Navidrome account, then we log in to both.
-                    val response = app.social.api.signup(inviteCode, username.trim(), password, displayName.trim())
+                    val response = app.social.apiFor(social!!).signup(inviteCode, username.trim(), password, displayName.trim())
                     app.session.saveSocial(SocialSession(response.sessionToken, response.user))
                 }
                 app.api.ping(credentials) // checks the server address and password
@@ -80,7 +81,7 @@ fun LoginScreen() {
     // New accounts must pass the password rules; logging in accepts whatever password you already have.
     val passwordCheck = if (signingUp && password.isNotEmpty()) PasswordRules.check(password, username) else null
     val canSubmit = !busy && server.isNotBlank() && username.isNotBlank() && password.isNotEmpty() &&
-        (!signingUp || (inviteCode.isNotBlank() && passwordCheck?.problem == null))
+        (!signingUp || (friendsServer.isNotBlank() && inviteCode.isNotBlank() && passwordCheck?.problem == null))
 
     Surface(Modifier.fillMaxSize()) {
         Column(
@@ -93,17 +94,25 @@ fun LoginScreen() {
             val reason by app.session.logoutReason.collectAsStateWithLifecycle()
             reason?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center) }
 
+            OutlinedTextField(
+                value = server, onValueChange = { server = it.trim() }, label = { Text("Music server") },
+                placeholder = { Text("music.example.com") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            )
+            OutlinedTextField(
+                value = friendsServer, onValueChange = { friendsServer = it.trim() },
+                label = { Text(if (signingUp) "Friends server" else "Friends server (optional)") },
+                placeholder = { Text("friends.example.com") },
+                supportingText = { Text("For friends, chat and listening together. Ask whoever invited you") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            )
             if (signingUp) {
                 OutlinedTextField(
                     value = inviteCode, onValueChange = { inviteCode = it.uppercase() }, label = { Text("Invite code") },
                     placeholder = { Text("ABCD-EFGH") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                )
-            } else {
-                OutlinedTextField(
-                    value = server, onValueChange = { server = it }, label = { Text("Server") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 )
             }
             OutlinedTextField(
@@ -134,7 +143,6 @@ fun LoginScreen() {
             TextButton(onClick = {
                 signingUp = !signingUp
                 error = null
-                if (signingUp) server = DEFAULT_SERVER
             }) {
                 Text(if (signingUp) "Already have an account? Log in" else "Got an invite code? Sign up")
             }

@@ -1,0 +1,20 @@
+# Navidrome: the music server Isaipetti plays from. See README.md in this folder.
+services:
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    user: "${PUID:-1000}:${PGID:-1000}"  # your own user, so it can read your music and write data/
+    env_file: .env
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_SCANSCHEDULE: 1h        # look for new music every hour
+      ND_LOGLEVEL: info
+    volumes:
+      - ./data:/data                     # Navidrome's database and cache
+      - ${MUSIC_FOLDER}:/music:ro        # your music, read-only
+    ports:
+      # Reachable from this machine and from containers (the friends server uses host.docker.internal).
+      # Anything on your home network can reach it too; limit it with your firewall if you like.
+      - "4533:4533"
+    restart: unless-stopped

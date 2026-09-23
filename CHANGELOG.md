@@ -10,6 +10,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 ## 0.3.4 (unreleased)
 
 ### New
+- **You enter your servers at login.** The login screen asks for the **Music server** and the **Friends server** (optional when logging in, needed to sign up). No server addresses are built into the app, so it works with anyone's servers. Invites you share now include both addresses, and Settings shows the servers you're using.
 - **Listen together** in any chat, group or DM. Tap the headphones at the top of a chat to start a session with what you're playing; others in the chat see "listening together" and can join. Everyone in the session hears the same music, and anyone can play, pause, skip, seek or change the queue for everyone. Leave any time and your music keeps playing on its own. Shuffle is off during a session so everyone hears the same order, and a phone call or unplugged headphones pauses only your phone.
 - **Share part of a song.** In the share sheet, turn on "Share only a part" and pick a start and end point with the slider, or tap "Start here" / "End here" while the song plays. Preview it before sending. Friends see a "Clip 1:05–1:35" card that plays just that part; press play again to hear the rest.
 - **Updates from inside the app.** The app checks GitHub for a newer version when it starts (every few hours at most) and offers to install it, with the patch notes. Settings shows your version and has "Check for updates". The first time, Android asks you to allow Isaipetti to install apps.
@@ -33,13 +34,16 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 - New app ID `io.github.devasenan134.isaipetti`, and release builds are signed with a permanent release key. **One-time step: uninstall the old app before installing this version** (Android sees it as a different app). You'll just need to log in again.
 - The server refuses oversized requests and messages, and caps listen-together queues at 5,000 songs.
 - Bug reports go through the friends server, so the GitHub token never ships inside the app.
+- No Firebase settings are built into the app. After login the app fetches them from the friends server (`GET /push/config`), so each friends server uses its own Firebase project.
+- The friends server's container runs as a normal user instead of root, and its Firebase files live in a `secrets/` folder.
 
 ### Server
 - New: `POST /bug-reports`, turned on by setting `GITHUB_REPO` and `GITHUB_TOKEN`. At most 5 reports per person per hour.
 
 ### Project
 - The project is licensed under GPL-3.0, with a README and the licenses of the bundled fonts and password list.
-- Server addresses, the Firebase app config and signing keys are no longer in the repository. They're read from private build settings.
+- Server addresses, Firebase files and signing keys are not in the repository or the app. Only the release signing key is a private build setting.
+- The repository has three parts, each with a guide: `navidrome/` (the music server on Docker), `server/` (the friends server on Docker) and `android/` (the app).
 - The companion server is now called `isaipetti-social`, and code packages are `io.github.devasenan134.isaipetti` (app) and `io.github.devasenan134.isaipetti.server` (server). Its database file is now `isaipetti-social.db`.
 
 ---

@@ -44,6 +44,9 @@ fun clockTime(ms: Long): String = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
 @Serializable data class AddFriendResponse(val status: String)
 @Serializable data class BugReport(val number: Long, val url: String)
 
+/** Firebase settings of a friends server's project (see push/PushSetup.kt). */
+@Serializable data class PushConfig(val projectId: String, val appId: String, val apiKey: String, val senderId: String)
+
 @Serializable
 data class ChatMessage(
     val id: Long,

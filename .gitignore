@@ -1,18 +1,20 @@
+# Build output and local tool files
 .gradle/
 .kotlin/
 build/
 local.properties
 .idea/
 *.iml
-*.keystore
-*.jks
 /isaipetti-*.apk
 
-# companion server
-server/.env
-server/data/
-server/firebase-key.json
+# Secrets and private data: never commit these (anywhere in the repo)
+.env
+/server/secrets/
+/navidrome/secrets/
+/server/data/
+/navidrome/data/
+*.keystore
+*.jks
+google-services.json
 *firebase-adminsdk*.json
-
-# Firebase app config: kept private, see README
-app/google-services.json
+firebase-key.json

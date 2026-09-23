@@ -6,6 +6,7 @@ import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.data.Updates
 import io.github.devasenan134.isaipetti.playback.PlayerConnection
 import io.github.devasenan134.isaipetti.push.Notifications
+import io.github.devasenan134.isaipetti.push.PushSetup
 import io.github.devasenan134.isaipetti.social.Social
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.MainScope
@@ -52,7 +53,9 @@ class IsaipettiApp : Application() {
             }
         })
         player = PlayerConnection(this, api)
-        social = Social(session, http, BuildConfig.SOCIAL_URL)
+        // Notifications can wake the app before any screen opens: start Firebase from the saved settings first.
+        PushSetup.startSaved(this)
+        social = Social(this, session, http)
         updates = Updates(this, http)
         appScope.launch { updates.checkNowAndThen() }
         Notifications.createChannels(this)

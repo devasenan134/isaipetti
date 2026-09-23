@@ -18,7 +18,8 @@ class SocialException(message: String, val code: Int = 0) : Exception(message)
 /** HTTP calls to the companion server (isaipetti-social): accounts, invites, friends and chat. */
 class SocialApi(
     private val http: OkHttpClient,
-    val baseUrl: String,
+    /** The friends server this talks to (typed in at login); null when none is set. */
+    private val baseUrl: () -> String?,
     private val token: () -> String?,
 ) {
     val json = Json {
@@ -66,7 +67,14 @@ class SocialApi(
         post<ReadBody, Unit>("/conversations/$conversationId/read", ReadBody(messageId))
 
     /** WebSocket address for live events. */
-    fun eventsUrl(): String? = token()?.let { baseUrl.replaceFirst("http", "ws") + "/ws?token=$it" }
+    fun eventsUrl(): String? = token()?.let { t -> baseUrl()?.let { it.replaceFirst("http", "ws") + "/ws?token=$t" } }
+
+    /** This server's Firebase settings for push notifications, or null if it has none. */
+    suspend fun pushConfig(): PushConfig? = try {
+        get("/push/config")
+    } catch (e: SocialException) {
+        if (e.code == 404) null else throw e
+    }
 
     private suspend inline fun <reified T> get(path: String): T = send("GET", path, null, serializer<T>())
 
@@ -80,7 +88,8 @@ class SocialApi(
         responseSerializer: KSerializer<T>? = null,
         authenticated: Boolean = true,
     ): T = withContext(Dispatchers.IO) {
-        val builder = Request.Builder().url(baseUrl + path)
+        val server = baseUrl() ?: throw SocialException("No friends server set. Add one when you log in")
+        val builder = Request.Builder().url(server + path)
         if (authenticated) builder.header("Authorization", "Bearer ${token() ?: throw SocialException("Not connected to friends", 401)}")
         builder.method(method, body?.toRequestBody("application/json".toMediaType()))
         http.newCall(builder.build()).execute().use { response ->

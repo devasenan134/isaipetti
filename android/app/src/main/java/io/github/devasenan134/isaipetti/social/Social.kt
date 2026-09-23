@@ -1,6 +1,8 @@
 package io.github.devasenan134.isaipetti.social
 
+import android.content.Context
 import android.util.Log
+import io.github.devasenan134.isaipetti.push.PushSetup
 import io.github.devasenan134.isaipetti.data.AppStateUpdate
 import io.github.devasenan134.isaipetti.data.ChatMessage
 import io.github.devasenan134.isaipetti.data.ClientEvent
@@ -55,8 +57,11 @@ import kotlin.coroutines.resume
  * after both stop. If the connection drops, it reconnects by itself.
  */
 @OptIn(FlowPreview::class)
-class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: String) {
-    val api = SocialApi(http, baseUrl) { session.social.value?.token }
+class Social(private val context: Context, private val session: SessionStore, private val http: OkHttpClient) {
+    val api = SocialApi(http, { session.credentials.value?.socialServer }) { session.social.value?.token }
+
+    /** For signing up, before the friends server is saved with the login. */
+    fun apiFor(server: String) = SocialApi(http, { server }) { null }
     private val wsClient = http.newBuilder().pingInterval(java.time.Duration.ofSeconds(25)).build()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -94,7 +99,7 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
 
     init {
         scope.launch {
-            combine(foreground, playing, session.credentials) { fg, pl, creds -> creds != null && (fg || pl) }
+            combine(foreground, playing, session.credentials) { fg, pl, creds -> creds?.socialServer != null && (fg || pl) }
                 .distinctUntilChanged()
                 .debounce { stayConnected -> if (stayConnected) 0 else 30_000 }
                 .collectLatest { stayConnected -> if (stayConnected) stayConnected() else _status.value = Status.Offline }
@@ -116,6 +121,8 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
     }
 
     private suspend fun registerDevice() {
+        // Start Firebase with this server's project first (its settings aren't built into the app).
+        quietly { api.pushConfig()?.let { PushSetup.start(context, it) } }
         val token = pushToken ?: fetchPushToken() ?: return
         pushToken = token
         if (session.social.value == null || token == registeredToken) return
@@ -141,6 +148,8 @@ class Social(private val session: SessionStore, http: OkHttpClient, baseUrl: Str
         quietly { pushToken?.let { api.unregisterDevice(it) } }
         quietly { api.logout() }
         registeredToken = null
+        pushToken = null
+        PushSetup.forget(context)
     }
 
     /** Called by the playback service whenever the song or play/pause changes. */

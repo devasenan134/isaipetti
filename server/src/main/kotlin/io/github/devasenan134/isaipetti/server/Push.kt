@@ -19,6 +19,33 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.Serializable
+
+/** What the app needs to start Firebase for this server's project. None of it is secret; it just isn't built into the app. */
+@Serializable
+data class PushConfig(val projectId: String, val appId: String, val apiKey: String, val senderId: String) {
+    companion object {
+        /** Reads the Android app's settings from a google-services.json file. */
+        fun fromGoogleServices(file: String, packageName: String = "io.github.devasenan134.isaipetti"): PushConfig {
+            val root = Json.parseToJsonElement(File(file).readText()).jsonObject
+            val project = root["project_info"]!!.jsonObject
+            val clients = root["client"]!!.jsonArray.map { it.jsonObject }
+            val client = clients.firstOrNull {
+                it["client_info"]?.jsonObject?.get("android_client_info")?.jsonObject?.get("package_name")?.jsonPrimitive?.content == packageName
+            } ?: clients.first()
+            return PushConfig(
+                projectId = project["project_id"]!!.jsonPrimitive.content,
+                appId = client["client_info"]!!.jsonObject["mobilesdk_app_id"]!!.jsonPrimitive.content,
+                apiKey = client["api_key"]!!.jsonArray.first().jsonObject["current_key"]!!.jsonPrimitive.content,
+                senderId = project["project_number"]!!.jsonPrimitive.content,
+            )
+        }
+    }
+}
 
 /** Delivers one push notification to one phone. */
 interface PushSender {

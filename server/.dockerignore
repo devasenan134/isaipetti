@@ -2,5 +2,6 @@ build
 .gradle
 .kotlin
 data
+secrets
 .env
-firebase-key.json
+*.json

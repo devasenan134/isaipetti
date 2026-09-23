@@ -1,4 +1,4 @@
-# Build stage: compile the server with Gradle (works on the Mac mini's ARM CPU).
+# Build stage: compile the server with Gradle (works on ARM and x86).
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 COPY gradlew settings.gradle.kts build.gradle.kts ./

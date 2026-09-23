@@ -1,70 +1,38 @@
 # Isaipetti (இசைப்பெட்டி)
 
-An Android music player for your own [Navidrome](https://www.navidrome.org/) server, with friends built in: see what friends are listening to, chat, share songs (or just a part of one), and listen together in sync.
+A music app for your own music, shared with your friends. Isaipetti streams from a [Navidrome](https://www.navidrome.org/) server you run at home, and adds a friends layer: see what friends are playing, chat, share songs (or just a part of one), and listen together in sync.
 
 - **Player:** home rows, movies (albums), composers, search, background playback, queue, synced lyrics, swipe between songs, scrobbling
 - **Friends:** invite codes, friend requests, live presence and now-playing, direct messages and group chats, push notifications
 - **Sharing:** send a song, or pick a start and end point and send just that part
-- **Listen together:** everyone in a chat's session hears the same music, and anyone in it can play, pause, skip or change the queue
+- **Listen together:** everyone in a chat's session hears the same music, and anyone can play, pause, skip or change the queue
+- **Staying current:** the app finds new releases by itself, and bugs can be reported from Settings
 
-Written in Kotlin: the app uses Jetpack Compose and Media3; the companion server uses Ktor and SQLite.
+## The three parts
 
-See [CHANGELOG.md](CHANGELOG.md) for what's in each release and [ROADMAP.md](ROADMAP.md) for what's planned.
-
-## Install
-
-Download the latest `isaipetti-<version>.apk` from [Releases](../../releases) and open it on your phone (allow installing from your browser or file manager when asked).
-
-To get updates automatically, install [Obtainium](https://github.com/ImranR98/Obtainium), tap **Add app** and paste this repository's address. It checks Releases for new versions and installs them.
-
-You need an account on a Navidrome server. Friends features also need the companion server below; ask whoever runs your server for an invite code.
-
-## How it fits together
+| | Part | What it is | Guide |
+|---|---|---|---|
+| 1 | **Navidrome** | The music server: your library, streaming, lyrics, accounts | [navidrome/](navidrome/README.md) |
+| 2 | **isaipetti-social** | The friends server: invites, friends, chat, listen together, notifications | [server/](server/README.md) |
+| 3 | **Android app** | What you and your friends install | [android/](android/README.md) |
 
 ```
-Isaipetti app ──── music, lyrics, playlists ────▶ Navidrome (Subsonic API)
+Isaipetti app ── music, lyrics, playlists ──▶ Navidrome            (Part 1)
       │
-      └──── friends, chat, listen together ────▶ companion server "isaipetti-social" (server/)
-                                                   └─ checks logins with Navidrome
+      └──────── friends, chat, listen together ──▶ isaipetti-social  (Part 2)
+                                                     └─ checks logins with Navidrome
 ```
 
-## Build the app
+Run Part 1 (and optionally Part 2) on a machine at home with Docker, give each an HTTPS address, and send those addresses to friends. They install the app (Part 3) and type them in at login. Nothing about your servers is built into the app or stored in this repository.
 
-Requires JDK 17+ and the Android SDK. Server addresses and signing keys aren't in the repository; put them in `~/.gradle/gradle.properties`:
+## Just want to install the app?
 
-```properties
-ISAIPETTI_SERVER_URL=https://music.example.com      # your Navidrome, pre-filled on the login screen
-ISAIPETTI_SOCIAL_URL=https://friends.example.com    # the companion server (friends, chat, listen together)
+Download the latest APK from [Releases](../../releases), then enter the music server and friends server addresses you were given. Details in [android/README.md](android/README.md#install-for-friends).
 
-# Only for signed release builds:
-ISAIPETTI_KEYSTORE=/path/to/isaipetti-release.jks
-ISAIPETTI_KEYSTORE_PASSWORD=...
-ISAIPETTI_KEY_ALIAS=isaipetti
-```
+## Project
 
-Then:
-
-```bash
-./gradlew assembleDebug     # or assembleRelease for a signed build
-```
-
-The APK ends up in `app/build/outputs/apk/`.
-
-Push notifications use Firebase. Create a Firebase project with an Android app for `io.github.devasenan134.isaipetti` and put its `google-services.json` in `app/`. Without it the app builds and works, just without notifications.
-
-## Run the companion server
-
-The server lives in [`server/`](server/) and runs with Docker next to Navidrome.
-
-1. Copy `server/.env.example` to `server/.env` and fill in a Navidrome admin account for the server to use (it creates accounts for invited people and checks for deleted ones).
-2. Optional, for push notifications: put a Firebase service-account key at `server/firebase-key.json`.
-3. Start it:
-
-   ```bash
-   cd server && docker compose up -d --build
-   ```
-
-It listens on `127.0.0.1:8095`; put it behind HTTPS (for example a Cloudflare tunnel or a reverse proxy). Tests: `cd server && ./gradlew test`.
+- [CHANGELOG.md](CHANGELOG.md): patch notes for every release
+- [ROADMAP.md](ROADMAP.md): what's planned, open bugs and todos
 
 ## License
 

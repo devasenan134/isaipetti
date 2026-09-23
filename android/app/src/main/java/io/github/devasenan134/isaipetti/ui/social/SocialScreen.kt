@@ -317,7 +317,8 @@ private fun EmptyHint(text: String) {
 /** Creates a one-time code and offers to share it (WhatsApp, SMS, …). */
 @Composable
 private fun InviteDialog(onDismiss: () -> Unit) {
-    val social = LocalApp.current.social
+    val app = LocalApp.current
+    val social = app.social
     val context = LocalContext.current
     var invite by remember { mutableStateOf<Invite?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -351,7 +352,12 @@ private fun InviteDialog(onDismiss: () -> Unit) {
         confirmButton = {
             val code = invite?.code
             Button(enabled = code != null, onClick = {
-                val text = "Join me on Isaipetti! Install the app, tap \"Got an invite code? Sign up\" and use this code: $code"
+                // The app has no servers built in, so the invite says what to type.
+                val creds = app.session.credentials.value
+                val text = "Join me on Isaipetti! Install the app, tap \"Got an invite code? Sign up\" and enter:\n" +
+                    "Music server: ${creds?.server.orEmpty().removePrefix("https://")}\n" +
+                    "Friends server: ${creds?.socialServer.orEmpty().removePrefix("https://")}\n" +
+                    "Invite code: $code"
                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share invite"))
             }) { Text("Share") }
         },

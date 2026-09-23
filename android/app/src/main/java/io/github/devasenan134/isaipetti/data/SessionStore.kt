@@ -23,6 +23,8 @@ data class Credentials(
     val username: String,
     val salt: String,
     val token: String,
+    /** The companion server for friends, chat and listen together; null if you didn't enter one. */
+    val socialServer: String? = null,
 )
 
 /** Logged in to the friends server as [user]. */
@@ -33,6 +35,7 @@ class SessionStore(private val context: Context) {
     private val username = stringPreferencesKey("username")
     private val salt = stringPreferencesKey("salt")
     private val token = stringPreferencesKey("token")
+    private val socialServer = stringPreferencesKey("social_server")
     private val socialToken = stringPreferencesKey("social_token")
     private val socialUser = stringPreferencesKey("social_user")
 
@@ -58,6 +61,7 @@ class SessionStore(private val context: Context) {
             username = prefs[username] ?: return,
             salt = prefs[salt] ?: return,
             token = prefs[token] ?: return,
+            socialServer = prefs[socialServer],
         )
     }
 
@@ -68,6 +72,7 @@ class SessionStore(private val context: Context) {
             it[username] = credentials.username
             it[salt] = credentials.salt
             it[token] = credentials.token
+            credentials.socialServer?.let { url -> it[socialServer] = url } ?: it.remove(socialServer)
         }
         _credentials.value = credentials
     }

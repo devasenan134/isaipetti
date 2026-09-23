@@ -122,10 +122,12 @@ Features not yet agreed. Add freely.
 Small tasks, cleanup and chores.
 
 - [x] Add a `README.md` with how to build the app and run the server
-- [ ] Deploy the server update (listen together, clips, deleting chats) to the Mac mini
-- [x] Create a release signing key (`~/keys/isaipetti/isaipetti-release.jks`)
-- [ ] Back up the release key and its password (in `~/.gradle/gradle.properties`) somewhere safe, e.g. Vaultwarden
+- [x] Deploy the server update (listen together, clips, deleting chats, push settings)
+- [x] Create a release signing key (kept outside the repository)
+- [ ] Back up the release key and its password somewhere safe, e.g. Vaultwarden
 - [ ] Create a fine-grained GitHub token (this repo only, Issues: read and write) and put it in the server's `.env` as `GITHUB_TOKEN`
-- [ ] Remove `google-services.json` and the server addresses from the git history before publishing
-- [ ] Restrict the Firebase API key in Google Cloud to the Android app (package name + signing certificate)
+- [x] Remove `google-services.json`, the server addresses and the personal email from the git history
+- [x] New Firebase project with app ID `io.github.devasenan134.isaipetti`; its files live only on the friends server
+- [x] Friends type the servers at login; no addresses or Firebase settings in the app or repo
+- [x] Restrict the Firebase API key in Google Cloud to the Android app (package name + signing certificate)
 - [ ] Create the public GitHub repository and publish 0.3.4 as the first GitHub release
