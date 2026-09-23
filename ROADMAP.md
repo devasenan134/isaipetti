@@ -106,7 +106,8 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Resume a playlist from the song you left off, keeping the shuffled order | App | P1 | 0.5.3 | Built | Queue order and current song saved on the phone per playlist |
+| Recents include plays from movie, composer and singer pages; Home without playlists | App | P2 | 0.5.3 | Built | |
 
 ---
 

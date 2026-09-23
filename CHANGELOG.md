@@ -7,6 +7,17 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.5.3 (unreleased)
+
+### New
+- **Resume a playlist where you left off.** When you play from a playlist, the app remembers the queue and which song you were on. Next time you open that playlist, **Resume · song name** continues from that song, in the same order as before, so a shuffled order stays the same. Songs added to the playlist since then join the end, and removed ones are skipped. The spot within the song isn't kept; the song starts from the beginning. This is kept on your phone for your 30 most recent playlists and cleared when you log out.
+
+### Improved
+- **Recents in Search include what you play.** Playing from a movie, composer or singer page (Play, Shuffle, Shuffle all or a song) now adds it to **Your recent movies** and **Your recent composers and artists**, however you got there, not only from search results.
+- **Home** no longer lists every playlist. Playlists are under Search → Playlists and in Your Library.
+
+---
+
 ## 0.5.2 (2026-09-23): Artists, playlist editing and live search
 
 ### New
