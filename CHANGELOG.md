@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.5.2 (unreleased)
+## 0.5.2 (2026-09-23): Artists, playlist editing and live search
 
 ### New
 - **Artists in Search.** The browse boxes are now a 2×2 grid: Movies, Composers, **Artists** and Playlists. Artists lists every singer A to Z (loading more as you scroll). A singer's page shows the songs they sing on, with Play and Shuffle. Search results show composers and artists separately.

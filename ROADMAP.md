@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.5.1 (app `versionCode` 12)
+- **Current version:** 0.5.2 (app `versionCode` 13)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,12 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.5.2: Artists, playlist editing and live search
+- Artists (singers) box in Search and singer pages; composers and artists shown separately in results
+- Edit playlists you made: rename, public/private, delete (asks twice), remove songs
+- Save to playlists from the player, like Spotify; New playlist in Your Library
+- Live suggestions while typing
 
 ### 0.5.1: Playlists in Search, song details and what's new
 - Playlists box in Search; recently searched songs, movies and composers; recently played playlists
@@ -100,10 +106,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Artists (singers) box in Search and singer pages | App | P2 | 0.5.2 | Built | Singers found through search (Navidrome's artist list only has album artists) |
-| Playlist editing for the author: add, remove, rename, public/private, delete with two confirmations | App | P1 | 0.5.2 | Built | Navidrome also checks ownership |
-| Live search suggestions | App | P2 | 0.5.2 | Built | Past searches and names from results |
-| Spotify-style Save to (checkboxes) from the player; New playlist in Your Library | App | P2 | 0.5.2 | Built | |
+| _nothing right now_ | | | | | |
 
 ---
 
