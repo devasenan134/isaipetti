@@ -10,6 +10,8 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 ## 0.5.1 (unreleased)
 
 ### New
+- **About this song.** In the full player, scroll down (or tap "About this song ⌄") to see the singers, music director, composer and lyricist (when tagged), movie, year, genre, track, length, audio quality (format, bitrate, sample rate), file size, how often you've played it and when it was added.
+- **What's new, in Settings.** The App version card shows the patch notes of the version you're running, or of the new version when there's an update, with **Show more** / **Show less**. The update pop-up shows its notes properly formatted too.
 - **Playlists in Search.** Next to Movies and Composers there's a **Playlists** box that opens every playlist on the music server. Below, **Recently played playlists** shows the playlists you last played from (remembered on your phone when you press Play or Shuffle, or tap a song, on a playlist).
 
 ### Improved

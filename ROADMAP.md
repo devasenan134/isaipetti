@@ -96,6 +96,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 |---|---|---|---|---|---|
 | Playlists box in Search and recently played playlists | App | P2 | 0.5.1 | Built | Recently played playlists kept on the phone |
 | Playlist author, details and readable total time | App | P2 | 0.5.1 | Built | |
+| Song details below the player; patch notes in Settings | App | P2 | 0.5.1 | Built | Details from Navidrome's getSong; notes from GitHub Releases |
 
 ---
 
