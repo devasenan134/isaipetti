@@ -32,6 +32,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.devasenan134.isaipetti.R
+import io.github.devasenan134.isaipetti.ui.components.songCount
+import io.github.devasenan134.isaipetti.ui.components.formatTotalDuration
+import androidx.compose.ui.text.style.TextAlign
 import io.github.devasenan134.isaipetti.ui.components.LikeButton
 import io.github.devasenan134.isaipetti.data.Song
 import io.github.devasenan134.isaipetti.ui.Nav
@@ -41,7 +44,6 @@ import io.github.devasenan134.isaipetti.ui.components.LoadableContent
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
 import io.github.devasenan134.isaipetti.ui.components.ScreenHeader
 import io.github.devasenan134.isaipetti.ui.components.SongRow
-import io.github.devasenan134.isaipetti.ui.components.formatDuration
 import io.github.devasenan134.isaipetti.ui.components.rememberLoader
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -83,9 +85,18 @@ fun PlaylistScreen(id: String, nav: Nav) {
             SongList(
                 liked = likedPlaylists.any { it.id == playlist.id },
                 onToggleLike = { app.likes.toggle(playlist) },
+                onPlay = { app.recentPlaylists.played(playlist) },
                 coverArt = playlist.coverArt,
                 title = playlist.name,
-                subtitle = playlist.comment.orEmpty(),
+                // Who made it, then its description and when it was last updated.
+                subtitle = playlist.owner?.let { "By $it" }.orEmpty(),
+                details = listOfNotNull(
+                    playlist.comment,
+                    listOfNotNull(
+                        if (playlist.public) "Public playlist" else "Private playlist",
+                        playlist.changed?.let { "Updated ${shortDate(it)}" },
+                    ).joinToString(" · "),
+                ),
                 songs = playlist.entry,
                 onSubtitleClick = null,
                 showCovers = true,
@@ -144,9 +155,12 @@ fun ArtistScreen(id: String, nav: Nav) {
 internal fun SongList(
     liked: Boolean? = null,
     onToggleLike: () -> Unit = {},
+    onPlay: () -> Unit = {},
     coverArt: String?,
     title: String,
     subtitle: String,
+    /** Extra lines under the title, like a playlist's description and when it was updated. */
+    details: List<String> = emptyList(),
     songs: List<Song>,
     onSubtitleClick: (() -> Unit)?,
     showCovers: Boolean,
@@ -167,17 +181,27 @@ internal fun SongList(
                         Text(subtitle, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+                details.filter { it.isNotBlank() }.forEach {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
                 Text(
-                    "${songs.size} songs · ${formatDuration(songs.sumOf { it.duration })}",
+                    "${songCount(songs.size)} · ${formatTotalDuration(songs.sumOf { it.duration })}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { player.play(songs) }, enabled = songs.isNotEmpty()) {
+                    Button(onClick = { onPlay(); player.play(songs) }, enabled = songs.isNotEmpty()) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null)
                         Text("Play", Modifier.padding(start = 8.dp))
                     }
-                    FilledTonalButton(onClick = { player.play(songs, shuffle = true) }, enabled = songs.isNotEmpty()) {
+                    FilledTonalButton(onClick = { onPlay(); player.play(songs, shuffle = true) }, enabled = songs.isNotEmpty()) {
                         Icon(painterResource(R.drawable.ic_shuffle), contentDescription = null)
                         Text("Shuffle", Modifier.padding(start = 8.dp))
                     }
@@ -188,7 +212,7 @@ internal fun SongList(
         itemsIndexed(songs, key = { index, song -> "$index-${song.id}" }) { index, song ->
             SongRow(
                 song = song,
-                onClick = { player.play(songs, index) },
+                onClick = { onPlay(); player.play(songs, index) },
                 isCurrent = song.id == nowPlaying.songId,
                 showCover = showCovers,
                 onOpenAlbum = if (showCovers) nav.openAlbum else null,
@@ -196,3 +220,8 @@ internal fun SongList(
         }
     }
 }
+
+/** "2026-09-12T18:04:00Z" -> "12 Sep 2026" */
+private fun shortDate(iso: String): String = runCatching {
+    java.time.OffsetDateTime.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy"))
+}.getOrDefault(iso.take(10))

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.devasenan134.isaipetti.IsaipettiApp
 import io.github.devasenan134.isaipetti.data.Album
+import io.github.devasenan134.isaipetti.data.Playlist
 import io.github.devasenan134.isaipetti.data.Song
 import io.github.devasenan134.isaipetti.data.toRef
 import io.github.devasenan134.isaipetti.ui.social.ShareSongSheet
@@ -56,6 +57,22 @@ fun formatDuration(seconds: Int): String {
     val s = seconds % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
+
+/** A total playing time: "45 min", "2 hr 15 min", "3 days 4 hr". */
+fun formatTotalDuration(seconds: Int): String {
+    val days = seconds / 86_400
+    val hours = seconds % 86_400 / 3600
+    val minutes = seconds % 3600 / 60
+    return when {
+        days > 0 -> "$days ${if (days == 1) "day" else "days"}" + if (hours > 0) " $hours hr" else ""
+        hours > 0 -> "$hours hr" + if (minutes > 0) " $minutes min" else ""
+        minutes > 0 -> "$minutes min"
+        else -> "$seconds sec"
+    }
+}
+
+/** "1 song", "3,264 songs" */
+fun songCount(n: Int) = if (n == 1) "1 song" else "%,d songs".format(n)
 
 /** Album art from Navidrome, with a plain placeholder behind it while loading or if missing. */
 @Composable
@@ -83,6 +100,20 @@ fun AlbumCard(album: Album, onClick: () -> Unit, modifier: Modifier = Modifier) 
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+fun PlaylistCard(playlist: Playlist, modifier: Modifier = Modifier.width(140.dp), onClick: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(6.dp)) {
+        Cover(playlist.coverArt, Modifier.fillMaxWidth().aspectRatio(1f))
+        Spacer(Modifier.height(6.dp))
+        Text(playlist.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            "${playlist.songCount} songs",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
