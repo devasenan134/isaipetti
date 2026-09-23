@@ -12,8 +12,10 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 ### New
 - **Playlists in Search.** Next to Movies and Composers there's a **Playlists** box that opens every playlist on the music server. Below, **Recently played playlists** shows the playlists you last played from (remembered on your phone when you press Play or Shuffle, or tap a song, on a playlist).
 
-### Fixed
-- **Your Library** showed every playlist you own, which could be all of them. It now shows only playlists you liked.
+### Improved
+- **Playlist pages** show who made the playlist, its description, whether it's public or private, and when it was last updated.
+- Total playing time is easier to read on playlist, movie and Liked songs pages ("2 hr 15 min", or days for very long playlists), and song counts use thousands separators ("3,264 songs").
+- **Your Library** shows who made each playlist. It lists your liked playlists first, then the other playlists you created.
 
 ---
 
