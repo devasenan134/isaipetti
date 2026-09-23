@@ -14,6 +14,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ### Server
 - `POST /bug-reports` takes an optional `kind` (`bug` or `feature`); older apps keep sending bugs.
+- Notification registrations from old app versions (another Firebase project) are forgotten after their first failed delivery, instead of failing on every message.
 
 ---
 

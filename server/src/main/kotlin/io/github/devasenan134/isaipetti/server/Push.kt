@@ -95,8 +95,9 @@ class FcmSender(keyFile: String) : PushSender {
         }
         if (response.status.isSuccess()) return PushSender.Result.Sent
         val text = response.bodyAsText()
-        // The app was uninstalled or the token was replaced: forget this phone.
-        if (response.status == HttpStatusCode.NotFound || "UNREGISTERED" in text || "INVALID_ARGUMENT" in text) {
+        // The app was uninstalled, the token was replaced, or it belongs to another Firebase project
+        // (an old app version from before this server's project): forget this phone.
+        if (response.status == HttpStatusCode.NotFound || "UNREGISTERED" in text || "INVALID_ARGUMENT" in text || "SENDER_ID_MISMATCH" in text) {
             return PushSender.Result.InvalidToken
         }
         log.warn("FCM send failed (${response.status.value}): ${text.take(300)}")
