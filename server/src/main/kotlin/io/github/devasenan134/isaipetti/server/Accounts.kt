@@ -20,8 +20,9 @@ class Accounts(private val db: Db, private val navidrome: Navidrome, private val
         if (!navidrome.checkLogin(username, request.salt, request.token)) {
             throw ApiError(HttpStatusCode.Unauthorized, "Wrong username or password")
         }
+        val navidromeId = navidrome.idFor(username)
         return db.tx {
-            val user = upsertUser(username, displayName = username)
+            val user = upsertUser(username, displayName = username, navidromeId = navidromeId)
             SessionResponse(newSession(user.id), user)
         }
     }
@@ -32,18 +33,18 @@ class Accounts(private val db: Db, private val navidrome: Navidrome, private val
         if (!USERNAME.matches(username)) {
             throw ApiError(HttpStatusCode.BadRequest, "Usernames are 3–24 letters, numbers, dots, dashes or underscores")
         }
-        if (request.password.length < 8) throw ApiError(HttpStatusCode.BadRequest, "Use a password of at least 8 characters")
+        PasswordRules.check(request.password, username).problem?.let { throw ApiError(HttpStatusCode.BadRequest, it) }
         if (displayName.length > 40) throw ApiError(HttpStatusCode.BadRequest, "Display name is too long")
 
         val code = normalizeCode(request.inviteCode)
         val inviterId = db.tx { validInviteCreator(code) }
             ?: throw ApiError(HttpStatusCode.BadRequest, "That invite code isn't valid or has expired")
 
-        navidrome.createUser(username, displayName, request.password)
+        val navidromeId = navidrome.createUser(username, displayName, request.password)
 
         val session = db.tx {
             // Someone may have used the same code in the meantime; the code is still consumed only once.
-            val user = upsertUser(username, displayName)
+            val user = upsertUser(username, displayName, navidromeId)
             val claimed = update("UPDATE invites SET used_by = ?, used_at = ? WHERE code = ? AND used_by IS NULL", user.id, now(), code)
             if (claimed == 0) throw ApiError(HttpStatusCode.BadRequest, "That invite code was just used by someone else")
             // You become friends with whoever invited you.
@@ -105,9 +106,26 @@ class Accounts(private val db: Db, private val navidrome: Navidrome, private val
         }
     }
 
-    private fun java.sql.Connection.upsertUser(username: String, displayName: String): UserDto {
+    /**
+     * Finds or creates the user. With Navidrome's permanent [navidromeId] a renamed account keeps
+     * its friends and chats, and a new account that reuses an old username starts fresh.
+     */
+    private fun java.sql.Connection.upsertUser(username: String, displayName: String, navidromeId: String?): UserDto {
+        if (navidromeId != null) {
+            val known = queryOne("SELECT id FROM users WHERE navidrome_id = ?", navidromeId) { it.getLong(1) }
+            if (known != null) {
+                update("UPDATE users SET username = ? WHERE id = ?", username, known) // follows a rename
+                return queryOne("SELECT * FROM users WHERE id = ?", known) { it.toUser() }!!
+            }
+            // Same username but a different Navidrome account: the old one was deleted and recreated.
+            queryOne("SELECT id, navidrome_id FROM users WHERE username = ?", username) { it.getLong(1) to it.getString(2) }
+                ?.takeIf { (_, oldId) -> oldId != null && oldId != navidromeId }
+                ?.let { (oldUserId, _) -> retireUser(oldUserId) }
+        }
         update("INSERT OR IGNORE INTO users (username, display_name, created_at) VALUES (?, ?, ?)", username, displayName, now())
-        return queryOne("SELECT * FROM users WHERE username = ?", username) { it.toUser() }!!
+        val user = queryOne("SELECT * FROM users WHERE username = ?", username) { it.toUser() }!!
+        if (navidromeId != null) update("UPDATE users SET navidrome_id = ? WHERE id = ? AND navidrome_id IS NULL", navidromeId, user.id)
+        return user
     }
 
     private fun java.sql.Connection.newSession(userId: Long): String {

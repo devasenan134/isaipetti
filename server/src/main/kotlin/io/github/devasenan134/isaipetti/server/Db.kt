@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -114,6 +114,12 @@ class Db(path: String) {
 
         // Users removed from Navidrome are kept (renamed) so old chat messages still have a sender.
         val SCHEMA_V2 = "ALTER TABLE users ADD COLUMN deleted_at INTEGER"
+
+        // Navidrome's permanent user id, so a renamed account is recognised instead of treated as deleted.
+        val SCHEMA_V3 = """
+            ALTER TABLE users ADD COLUMN navidrome_id TEXT;
+            CREATE UNIQUE INDEX users_by_navidrome_id ON users(navidrome_id)
+        """.trimIndent()
     }
 }
 

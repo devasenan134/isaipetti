@@ -35,10 +35,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.devasenan134.isaipetti.BuildConfig
+import io.github.devasenan134.isaipetti.data.PasswordRules
 import io.github.devasenan134.isaipetti.data.SocialSession
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.ui.Nav
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
+import io.github.devasenan134.isaipetti.ui.components.PasswordStrength
 import io.github.devasenan134.isaipetti.ui.components.ScreenHeader
 import io.github.devasenan134.isaipetti.ui.social.Avatar
 import kotlinx.coroutines.launch
@@ -132,13 +134,14 @@ private fun ChangePasswordCard() {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    val username = app.session.credentials.collectAsStateWithLifecycle().value?.username.orEmpty()
+    val check = if (new.isNotEmpty()) PasswordRules.check(new, username) else null
     val problem = when {
-        new.isNotEmpty() && new.length < 8 -> "Use at least 8 characters"
         new.isNotEmpty() && new == current -> "The new password is the same as the current one"
         confirm.isNotEmpty() && confirm != new -> "The new passwords don't match"
         else -> null
     }
-    val canSave = !busy && current.isNotEmpty() && new.length >= 8 && confirm == new && problem == null
+    val canSave = !busy && current.isNotEmpty() && check?.problem == null && new.isNotEmpty() && confirm == new && problem == null
 
     fun save() {
         busy = true
@@ -169,6 +172,7 @@ private fun ChangePasswordCard() {
             HorizontalDivider()
             PasswordField("Current password", current) { current = it }
             PasswordField("New password", new) { new = it }
+            check?.let { PasswordStrength(it) }
             PasswordField("Repeat new password", confirm) { confirm = it }
             (error ?: problem)?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
             Button(onClick = ::save, enabled = canSave, modifier = Modifier.fillMaxWidth()) {

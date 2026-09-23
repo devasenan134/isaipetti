@@ -32,9 +32,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.devasenan134.isaipetti.data.PasswordRules
 import io.github.devasenan134.isaipetti.data.SocialSession
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.ui.components.LocalApp
+import io.github.devasenan134.isaipetti.ui.components.PasswordStrength
 import kotlinx.coroutines.launch
 
 private const val DEFAULT_SERVER = "https://music.example.com"
@@ -73,8 +75,10 @@ fun LoginScreen() {
         }
     }
 
+    // New accounts must pass the password rules; logging in accepts whatever password you already have.
+    val passwordCheck = if (signingUp && password.isNotEmpty()) PasswordRules.check(password, username) else null
     val canSubmit = !busy && server.isNotBlank() && username.isNotBlank() && password.isNotEmpty() &&
-        (!signingUp || (inviteCode.isNotBlank() && password.length >= 8))
+        (!signingUp || (inviteCode.isNotBlank() && passwordCheck?.problem == null))
 
     Surface(Modifier.fillMaxSize()) {
         Column(
@@ -114,11 +118,12 @@ fun LoginScreen() {
             }
             OutlinedTextField(
                 value = password, onValueChange = { password = it }, label = { Text("Password") },
-                supportingText = if (signingUp) ({ Text("At least 8 characters") }) else null,
+                supportingText = if (signingUp && password.isEmpty()) ({ Text("At least 10 characters. A few words work well") }) else null,
                 singleLine = true, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             )
+            passwordCheck?.let { PasswordStrength(it) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
                 if (busy) CircularProgressIndicator(Modifier.padding(2.dp), strokeWidth = 2.dp)

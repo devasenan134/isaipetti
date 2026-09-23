@@ -29,13 +29,14 @@ import kotlin.test.assertTrue
 /** Pretends to be Navidrome: a login works when the token is "ok-<username>". */
 private class FakeNavidrome : Navidrome(Config(0, "", "http://unused", "", "")) {
     val created = mutableListOf<String>()
-    /** What Navidrome's user list returns; null means "Navidrome unreachable". */
-    var existing: Set<String>? = null
-    override suspend fun userNames() = existing
+    /** Navidrome's user list as id -> username; null means "Navidrome unreachable". */
+    var accounts: MutableMap<String, String>? = null
+    override suspend fun users() = accounts?.map { (id, name) -> NavidromeUser(id, name) }
     override suspend fun checkLogin(username: String, salt: String, token: String) = token == "ok-$username"
-    override suspend fun createUser(username: String, displayName: String, password: String) {
+    override suspend fun createUser(username: String, displayName: String, password: String): String? {
         if (username in created) throw ApiError(HttpStatusCode.Conflict, "That username is taken")
         created += username
+        return null
     }
 }
 
@@ -59,11 +60,11 @@ class FlowTest {
         val invite = client.postJson("/invites", Unit, alice.sessionToken).body<InviteDto>()
         assertTrue(Regex("[A-Z2-9]{4}-[A-Z2-9]{4}").matches(invite.code))
         val bob = client.postJson(
-            "/auth/signup", SignupRequest(invite.code.lowercase().replace("-", ""), "bob", "longpassword", "Bob"),
+            "/auth/signup", SignupRequest(invite.code.lowercase().replace("-", ""), "bob", "quiet-river-song", "Bob"),
         ).body<SessionResponse>()
         assertEquals(listOf("bob"), navidrome.created)
         // The same code can't be used twice.
-        val reused = client.postJson("/auth/signup", SignupRequest(invite.code, "eve", "longpassword"))
+        val reused = client.postJson("/auth/signup", SignupRequest(invite.code, "eve", "quiet-river-song"))
         assertEquals(HttpStatusCode.BadRequest, reused.status)
 
         // Bob and Alice are friends automatically; the invite shows who used it.
@@ -131,7 +132,7 @@ class FlowTest {
         val alice = client.login("alice")
         val carol = client.login("carol")
         val code = client.postJson("/invites", Unit, alice.sessionToken).body<InviteDto>().code
-        val bob = client.postJson("/auth/signup", SignupRequest(code, "bob", "longpassword", "Bob")).body<SessionResponse>()
+        val bob = client.postJson("/auth/signup", SignupRequest(code, "bob", "quiet-river-song", "Bob")).body<SessionResponse>()
         client.postJson("/friends/requests", AddFriendRequest("carol"), alice.sessionToken)
         client.postJson("/friends/requests/${alice.user.id}/accept", Unit, carol.sessionToken)
         val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
@@ -143,14 +144,14 @@ class FlowTest {
         val cleanup = Cleanup(Db(path), navidrome, Hub { emptyList() })
 
         // Navidrome unreachable, or a list that would remove most people: do nothing.
-        navidrome.existing = null
-        assertEquals(emptyList(), cleanup.run())
-        navidrome.existing = setOf("alice")
-        assertEquals(emptyList(), cleanup.run())
+        navidrome.accounts = null
+        assertEquals(emptyList(), cleanup.run().removed)
+        navidrome.accounts = mutableMapOf("nd-alice" to "alice")
+        assertEquals(emptyList(), cleanup.run().removed)
 
         // Bob's account is deleted in Navidrome.
-        navidrome.existing = setOf("alice", "carol")
-        assertEquals(listOf("bob"), cleanup.run())
+        navidrome.accounts = mutableMapOf("nd-alice" to "alice", "nd-carol" to "carol")
+        assertEquals(listOf("bob"), cleanup.run().removed)
         assertEquals(listOf("carol"), client.friends(alice).map { it.user.username })
         assertEquals(HttpStatusCode.Unauthorized, client.get("/me") { bearerAuth(bob.sessionToken) }.status)
         // His old message is still there, marked as left, but the DM is closed.
@@ -165,6 +166,35 @@ class FlowTest {
         val newBob = client.login("bob")
         assertTrue(newBob.user.id != bob.user.id)
         assertEquals(emptyList(), client.friends(newBob))
+
+        // An admin renames carol to caroline in Navidrome (same account id): she keeps her friends,
+        // and logging in with the new name is still her.
+        navidrome.accounts!!["nd-carol"] = "caroline"
+        assertEquals(listOf("carol" to "caroline"), cleanup.run().renamed)
+        assertEquals(listOf("caroline"), client.friends(alice).map { it.user.username })
+        assertEquals(carol.user.id, client.login("caroline").user.id)
+
+        // Alice's account is deleted and a *different* "alice" is created before the cleanup runs:
+        // logging in as the new alice must not inherit the old one's friends.
+        navidrome.accounts!!.remove("nd-alice")
+        navidrome.accounts!!["nd-alice-2"] = "alice"
+        val otherAlice = client.login("alice")
+        assertTrue(otherAlice.user.id != alice.user.id)
+        assertEquals(emptyList(), client.friends(otherAlice))
+        assertEquals(emptyList(), client.friends(client.login("caroline")))
+    }
+
+    @Test
+    fun `password rules`() {
+        fun problem(p: String, user: String = "alice") = PasswordRules.check(p, user).problem
+        assertEquals("Use at least 10 characters", problem("short1!"))
+        assertEquals("That's one of the most commonly used passwords", problem("qwertyuiop"))
+        assertEquals("That's one of the most commonly used passwords", problem("Basketball"))
+        assertEquals("Don't include your username in the password", problem("alice-rocks-2026"))
+        assertEquals("Too repetitive. Mix in more different characters", problem("aaaaaaaaaaab"))
+        assertEquals(null, problem("kaatru veliyidai"))
+        assertEquals(PasswordRules.Strength.Okay, PasswordRules.check("mellisaimannan", "alice").strength)
+        assertEquals(PasswordRules.Strength.Strong, PasswordRules.check("Nila-Kaayudhu 1994", "alice").strength)
     }
 
     /** Retries [condition] for up to 5 seconds (the server registers WebSockets asynchronously). */

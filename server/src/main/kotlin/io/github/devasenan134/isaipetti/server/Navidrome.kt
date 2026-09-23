@@ -9,6 +9,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -43,14 +44,15 @@ open class Navidrome(private val config: Config) {
         return body?.get("status")?.jsonPrimitive?.content == "ok"
     }
 
-    /** Creates a normal (non-admin) Navidrome user through Navidrome's own admin API. */
-    open suspend fun createUser(username: String, displayName: String, password: String) {
+    /** Creates a normal (non-admin) Navidrome user and returns its permanent id. */
+    open suspend fun createUser(username: String, displayName: String, password: String): String? {
         if (config.navidromeAdminUser.isBlank()) throw ApiError(HttpStatusCode.ServiceUnavailable, "Sign-up isn't set up on this server yet")
-        val adminToken = adminLogin()
-        val response = http.post("${config.navidromeUrl}/api/user") {
-            header("X-ND-Authorization", "Bearer $adminToken")
-            contentType(ContentType.Application.Json)
-            setBody(NewUser(userName = username, name = displayName, password = password))
+        val response = adminCall { token ->
+            http.post("${config.navidromeUrl}/api/user") {
+                header("X-ND-Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(NewUser(userName = username, name = displayName, password = password))
+            }
         }
         if (!response.status.isSuccess()) {
             val text = response.bodyAsText()
@@ -59,21 +61,46 @@ open class Navidrome(private val config: Config) {
             }
             throw ApiError(HttpStatusCode.BadGateway, "Navidrome refused to create the user (${response.status.value})")
         }
+        return runCatching { response.body<JsonObject>()["id"]?.jsonPrimitive?.content }.getOrNull()
     }
 
-    /** Every username in Navidrome (lowercase), or null if the list couldn't be fetched. */
-    open suspend fun userNames(): Set<String>? {
+    /** Everyone in Navidrome (permanent id + current username), or null if the list couldn't be fetched. */
+    open suspend fun users(): List<NavidromeUser>? {
         if (config.navidromeAdminUser.isBlank()) return null
         return runCatching {
-            val response = http.get("${config.navidromeUrl}/api/user") {
-                header("X-ND-Authorization", "Bearer ${adminLogin()}")
-                parameter("_start", 0)
-                parameter("_end", 10_000)
+            val response = adminCall { token ->
+                http.get("${config.navidromeUrl}/api/user") {
+                    header("X-ND-Authorization", "Bearer $token")
+                    parameter("_start", 0)
+                    parameter("_end", 10_000)
+                }
             }
             if (!response.status.isSuccess()) return null
-            response.body<List<JsonObject>>().mapNotNull { it["userName"]?.jsonPrimitive?.content?.lowercase() }.toSet()
+            response.body<List<JsonObject>>().mapNotNull { u ->
+                val id = u["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val name = u["userName"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                NavidromeUser(id, name)
+            }
         }.getOrNull()
     }
+
+    /** Navidrome's permanent id for [username], or null if unknown / not available. */
+    suspend fun idFor(username: String): String? = users()?.firstOrNull { it.userName.equals(username, ignoreCase = true) }?.id
+
+    /**
+     * Runs an admin request, logging the bot in only when needed. Navidrome rate-limits logins,
+     * so the admin token is reused (and refreshed if Navidrome says it expired).
+     */
+    private suspend fun adminCall(request: suspend (String) -> HttpResponse): HttpResponse {
+        val cached = adminToken
+        if (cached != null) {
+            val response = request(cached)
+            if (response.status != HttpStatusCode.Unauthorized) return response
+        }
+        return request(adminLogin().also { adminToken = it })
+    }
+
+    @Volatile private var adminToken: String? = null
 
     private suspend fun adminLogin(): String {
         val response = http.post("${config.navidromeUrl}/auth/login") {
@@ -86,6 +113,8 @@ open class Navidrome(private val config: Config) {
     }
 
     @Serializable private data class AdminLogin(val username: String, val password: String)
+
+    data class NavidromeUser(val id: String, val userName: String)
 
     @Serializable
     private data class NewUser(
