@@ -71,6 +71,10 @@ fun Application.isaipettiSocial(
     val push = Push(db, pushSender)
     friends.push = push
     chat.onUnseen = push::newMessage
+    listen.onStarted = { userId, conversationId ->
+        val recipients = chat.members(conversationId).filter { it != userId && !hub.isVisible(it) }
+        push.listenStarted(userId, conversationId, recipients)
+    }
     val bugReports = BugReports(issueTracker)
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)

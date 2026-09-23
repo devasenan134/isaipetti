@@ -7,6 +7,21 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.4.3 (unreleased)
+
+### New
+- **Know when friends listen together.** When a friend starts listening together in one of your chats, you get a notification ("Alice started listening together. Tap to join") that opens the chat. It only comes when you don't have the app open, at most once per chat every 30 minutes, and it has its own notification category ("Friends listening together") so you can turn it off separately in Android's settings.
+- **Search remembers.** Before you type, the Search page shows your recently played songs, your recently played movies (from Navidrome, so they include other devices) and your recent searches. Tap a search to run it again, ✕ to remove it, or Clear. A search is remembered when you press search on the keyboard or open a result. History is kept on your phone and cleared when you log out.
+
+### Improved
+- The share sheet lists **Groups** and **People** separately. Groups have a group icon and show their members; people show whether they're online. The chat list uses the same group icon.
+- The search box has a ✕ to clear it.
+
+### Server
+- Starting a new listen-together session sends a `listen` push notification to the chat's other members who don't have the app open (at most once per chat every 30 minutes).
+
+---
+
 ## 0.4.2 (2026-09-23): Leaving and deleting groups, sharing recent songs
 
 ### New

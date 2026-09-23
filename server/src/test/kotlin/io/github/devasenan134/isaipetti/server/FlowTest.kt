@@ -246,7 +246,8 @@ class FlowTest {
 
     @Test
     fun `listen together`() = testApplication {
-        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val push = FakePush()
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome(), push) }
         val client = createClient {
             install(ContentNegotiation) { json(eventJson) }
             install(WebSockets)
@@ -267,10 +268,15 @@ class FlowTest {
             while (true) nextEvent().let { if (match(it)) return it }
         }
 
-        // Alice starts listening together in her DM with Bob; Bob sees the session in the chat.
+        // Alice starts listening together in her DM with Bob; Bob sees the session in the chat, and since
+        // he doesn't have the app on screen, he also gets a notification.
+        client.postJson("/devices", DeviceRequest("phone-bob"), bob.sessionToken)
         val queue = listOf(SongRef("s1", "Uyire"), SongRef("s2", "Malargale"))
         aliceWs.sendEvent(ListenStart(dm.id, ListenState(queue, "q1", index = 0, positionMs = 12_000, playing = true)))
         assertEquals(listOf(alice.user.id), (bobWs.next { it is ListenSessionEvent } as ListenSessionEvent).listeners)
+        eventually { push.sent.isNotEmpty() }
+        val note = push.sent.single().second
+        assertEquals(listOf("listen", dm.id.toString(), "alice"), listOf(note["type"], note["conversationId"], note["title"]))
         assertEquals(listOf(alice.user.id), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
 
         // Carol isn't in the chat, so she can't join. Bob joins and gets the whole queue.
@@ -293,6 +299,11 @@ class FlowTest {
         bobWs.sendEvent(ListenLeave(dm.id))
         bobWs.next { it is ListenSessionEvent && it.listeners.isEmpty() }
         assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
+
+        // Starting again right away doesn't notify again (at most once every 30 minutes per chat).
+        bobWs.sendEvent(ListenStart(dm.id, ListenState(queue, "q2", index = 0, positionMs = 0, playing = true)))
+        bobWs.next { it is ListenSessionEvent && it.listeners == listOf(bob.user.id) }
+        assertEquals(1, push.sent.size)
     }
 
     @Test

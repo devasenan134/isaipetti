@@ -87,7 +87,9 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Groups and people shown separately in the share sheet | App | P2 | 0.4.3 | Built | Group icon and members |
+| Search history and recently played on the Search page | App | P2 | 0.4.3 | Built | History kept on the phone; recent movies from Navidrome |
+| Notification when friends start listening together | Server + App | P2 | 0.4.3 | Built | Only when the app isn't open; at most once per chat every 30 minutes |
 
 ---
 
