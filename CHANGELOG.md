@@ -7,6 +7,13 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.5.4 (unreleased)
+
+### Fixed
+- **The player's colour now really matches the cover.** It was using the cover's muted shades, blended only lightly into the background, so a red cover barely looked red. It now takes the cover's main colour (a red cover gives a deep red in dark mode, a soft pink in light mode) and shows it clearly at the top, easing into the background around the controls.
+
+---
+
 ## 0.5.3 (2026-09-23): Swipe gestures, cover colours and resume
 
 ### New
