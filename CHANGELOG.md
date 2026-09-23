@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.4.2 (unreleased)
+## 0.4.2 (2026-09-23): Leaving and deleting groups, sharing recent songs
 
 ### New
 - **Leave a group.** In a group chat, tap ⋮ → **Leave group**. The others see "… left the group" in the chat. If the group's owner leaves, the longest-standing member becomes the owner; when the last person leaves, the group is deleted.

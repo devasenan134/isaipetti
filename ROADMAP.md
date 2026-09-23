@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.4.1 (app `versionCode` 9)
+- **Current version:** 0.4.2 (app `versionCode` 10)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,10 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.4.2: Leaving and deleting groups, sharing recent songs
+- Leave a group chat; the group's owner can delete it for everyone
+- The chat's music button shows what's playing and recently played songs, with the option to share just a part
 
 ### 0.4.1: Feature requests
 - Settings has a Feedback card: Report a bug and Suggest a feature, both posted as GitHub issues
@@ -83,8 +87,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Leave a group, delete a group for everyone | Server + App | P1 | 0.4.2 | Built | Owner deletes for everyone; ownership passes on when the owner leaves |
-| Share recent songs or a part of one from the chat's music button | App | P2 | 0.4.2 | Built | Recently played songs are kept on the phone |
+| _nothing right now_ | | | | | |
 
 ---
 
