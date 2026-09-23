@@ -72,6 +72,7 @@ fun Connection.retireUser(userId: Long): List<Long> {
     val friends = query("SELECT friend_id FROM friendships WHERE user_id = ?", userId) { it.getLong(1) }
     update("DELETE FROM sessions WHERE user_id = ?", userId)
     update("DELETE FROM devices WHERE user_id = ?", userId)
+    update("DELETE FROM liked_playlists WHERE user_id = ?", userId)
     update("DELETE FROM friendships WHERE user_id = ? OR friend_id = ?", userId, userId)
     update("DELETE FROM friend_requests WHERE from_id = ? OR to_id = ?", userId, userId)
     update("DELETE FROM invites WHERE created_by = ? AND used_by IS NULL", userId)

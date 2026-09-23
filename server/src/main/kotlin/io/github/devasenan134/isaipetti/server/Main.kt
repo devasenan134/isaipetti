@@ -23,6 +23,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
@@ -71,7 +72,12 @@ fun Application.isaipettiSocial(
     val push = Push(db, pushSender)
     friends.push = push
     chat.onUnseen = push::newMessage
+    listen.onStarted = { userId, conversationId ->
+        val recipients = chat.members(conversationId).filter { it != userId && !hub.isVisible(it) }
+        push.listenStarted(userId, conversationId, recipients)
+    }
     val bugReports = BugReports(issueTracker)
+    val playlistLikes = PlaylistLikes(db)
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
     // Every 10 minutes, remove people whose Navidrome account is gone.
@@ -176,6 +182,18 @@ fun Application.isaipettiSocial(
                 }
                 post("/remove") {
                     push.unregister(call.me().id, call.receive<DeviceRequest>().token)
+                    call.respond(HttpStatusCode.NoContent)
+                }
+            }
+
+            route("/likes/playlists") {
+                get { call.respond(playlistLikes.list(call.me().id)) }
+                put {
+                    playlistLikes.like(call.me().id, call.receive())
+                    call.respond(HttpStatusCode.NoContent)
+                }
+                delete("/{id}") {
+                    playlistLikes.unlike(call.me().id, call.parameters["id"].orEmpty())
                     call.respond(HttpStatusCode.NoContent)
                 }
             }

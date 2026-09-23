@@ -141,6 +141,24 @@ class Push(private val db: Db, private val sender: PushSender) {
 
     private fun SongRef.clipLabel() = if (isClip) " (${clockTime(clipStartMs!!)}–${clockTime(clipEndMs!!)})" else ""
 
+    /** "Alice is listening together in Gang. Tap to join", for chat members who don't have the app open. */
+    suspend fun listenStarted(starterId: Long, conversationId: Long, recipients: List<Long>) {
+        if (recipients.isEmpty()) return
+        val (starter, groupName) = db.tx {
+            val name = queryOne("SELECT display_name FROM users WHERE id = ?", starterId) { it.getString(1) } ?: return@tx null
+            name to queryOne("SELECT name FROM conversations WHERE id = ? AND kind = 'group'", conversationId) { it.getString(1) }
+        } ?: return
+        notify(
+            recipients,
+            mapOf(
+                "type" to "listen",
+                "conversationId" to conversationId.toString(),
+                "title" to (groupName ?: starter),
+                "body" to if (groupName != null) "$starter started listening together. Tap to join" else "Started listening together. Tap to join",
+            ),
+        )
+    }
+
     suspend fun friendRequest(from: UserDto, to: Long) = notify(
         listOf(to),
         mapOf("type" to "friendRequest", "title" to "Friend request", "body" to "${from.displayName} (@${from.username}) wants to be friends"),

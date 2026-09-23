@@ -51,6 +51,10 @@ class ListenTogether(private val hub: Hub, private val membersOf: suspend (Long)
 
     private val sessions = mutableMapOf<Long, Session>() // guarded by synchronized(sessions)
 
+    /** Called when someone starts a new session in a chat (for push notifications), at most every 30 minutes per chat. */
+    var onStarted: suspend (userId: Long, conversationId: Long) -> Unit = { _, _ -> }
+    private val lastStarted = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+
     fun listeners(conversationId: Long): List<Long> = synchronized(sessions) { sessions[conversationId]?.listeners?.toList().orEmpty() }
 
     suspend fun handle(userId: Long, event: ClientEvent) {
@@ -67,15 +71,23 @@ class ListenTogether(private val hub: Hub, private val membersOf: suspend (Long)
     private suspend fun join(userId: Long, conversationId: Long, startWith: ListenState?) {
         if (userId !in membersOf(conversationId) || (startWith?.queue?.size ?: 0) > MAX_QUEUE) return
         leaveAll(userId, except = conversationId)
+        var started = false
         val state = synchronized(sessions) {
             val session = sessions[conversationId]
-                ?: startWith?.let { Session(it.copy(queue = it.queue.orEmpty(), updatedAt = now()), mutableSetOf()) }?.also { sessions[conversationId] = it }
+                ?: startWith?.let { Session(it.copy(queue = it.queue.orEmpty(), updatedAt = now()), mutableSetOf()) }
+                    ?.also { sessions[conversationId] = it; started = true }
                 ?: return
             session.listeners += userId
             session.state
         }
         hub.send(listOf(userId), ListenStateEvent(conversationId, state, by = userId, serverTime = now()))
         announce(conversationId)
+        // Reconnects and quick restarts shouldn't notify everyone again.
+        if (started) {
+            val t = now()
+            val last = lastStarted.put(conversationId, t)
+            if (last == null || t - last > NOTIFY_EVERY_MS) onStarted(userId, conversationId)
+        }
     }
 
     private suspend fun leave(userId: Long, conversationId: Long) {
@@ -117,6 +129,7 @@ class ListenTogether(private val hub: Hub, private val membersOf: suspend (Long)
 
     private companion object {
         const val MAX_QUEUE = 5_000
+        const val NOTIFY_EVERY_MS = 30 * 60 * 1000L
     }
 
     private suspend fun announce(conversationId: Long) {

@@ -2,7 +2,9 @@ package io.github.devasenan134.isaipetti
 
 import android.app.Application
 import io.github.devasenan134.isaipetti.data.SessionStore
+import io.github.devasenan134.isaipetti.data.Likes
 import io.github.devasenan134.isaipetti.data.RecentSongs
+import io.github.devasenan134.isaipetti.data.SearchHistory
 import io.github.devasenan134.isaipetti.data.SubsonicApi
 import io.github.devasenan134.isaipetti.data.Updates
 import io.github.devasenan134.isaipetti.playback.PlayerConnection
@@ -34,6 +36,10 @@ class IsaipettiApp : Application() {
         private set
     lateinit var recent: RecentSongs
         private set
+    lateinit var searches: SearchHistory
+        private set
+    lateinit var likes: Likes
+        private set
 
     /** A screen to open, set when the app is launched from a notification. */
     val pendingOpen = MutableStateFlow<PendingOpen?>(null)
@@ -51,6 +57,8 @@ class IsaipettiApp : Application() {
                 if (session.credentials.value == rejected) {
                     player.stop()
                     recent.clear()
+                    searches.clear()
+                    likes.clear()
                     social.logout() // also stops notifications to this phone
                     session.clear("Your password was changed. Log in again with the new one.")
                 }
@@ -62,6 +70,9 @@ class IsaipettiApp : Application() {
         social = Social(this, session, http)
         updates = Updates(this, http)
         recent = RecentSongs(this)
+        searches = SearchHistory(this)
+        likes = Likes(this, api, session) { social.api }
+        if (session.credentials.value != null) likes.refresh()
         appScope.launch { updates.checkNowAndThen() }
         Notifications.createChannels(this)
     }

@@ -7,6 +7,27 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.5.0 (unreleased)
+
+### New
+- **New layout: Home, Search, Your Library, Friends.** Movies and Composers moved into Search, like browsing in Spotify: Search shows a **Movies** box and a **Composers** box, then your **recently played songs, movies and composers** in separate rows. Tapping the search bar shows your recent searches; typing shows results. Back closes the search bar first.
+- **Liked songs.** Tap ♡ in the player, or **Like** in a song's ⋮ menu. Liked songs show a small heart in lists, and **Your Library → Liked songs** plays them all (Play or Shuffle).
+- **Like whole movies and playlists** with the ♡ next to Play and Shuffle.
+- **Your Library** lists Liked songs, your liked movies, and your liked and own playlists, with filters for All, Movies and Playlists.
+- Liked songs and movies are saved in Navidrome (its "favourites"), so they're the same on every device and in Navidrome's web page. Navidrome can't like playlists, so liked playlists are saved with your account on the friends server and follow you to every phone (without a friends server they stay on the phone).
+- **Know when friends listen together.** When a friend starts listening together in one of your chats, you get a notification ("Alice started listening together. Tap to join") that opens the chat. It only comes when you don't have the app open, at most once per chat every 30 minutes, and it has its own notification category ("Friends listening together") so you can turn it off separately in Android's settings.
+- **Search remembers** your searches: tap one to run it again, ✕ to remove it, or Clear. A search is remembered when you press search on the keyboard or open a result. History and recently played songs are kept on your phone and cleared when you log out.
+
+### Improved
+- The share sheet lists **Groups** and **People** separately. Groups have a group icon and show their members; people show whether they're online. The chat list uses the same group icon.
+- The search box has a ✕ to clear it.
+
+### Server
+- Liked playlists are stored per person (new table `liked_playlists`, database version 6): `GET /likes/playlists`, `PUT /likes/playlists`, `DELETE /likes/playlists/{id}`. They're removed with the person's account.
+- Starting a new listen-together session sends a `listen` push notification to the chat's other members who don't have the app open (at most once per chat every 30 minutes).
+
+---
+
 ## 0.4.2 (2026-09-23): Leaving and deleting groups, sharing recent songs
 
 ### New
