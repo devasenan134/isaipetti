@@ -113,7 +113,8 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Recently played on Home with every kind (round tiles for composers and artists) | App | P2 | 0.5.4 | Built | Recent activity kept on the phone |
+| Resume on movies and Liked songs | App | P2 | 0.5.4 | Built | |
 
 ---
 
@@ -152,6 +153,8 @@ Features not yet agreed. Add freely.
 
 | # | Bug | Area | Fixed in | Notes |
 |---|---|---|---|---|
+| 4 | Changing a smart or file-synced playlist failed with "Couldn't change" | App | 0.5.4 | Uses Navidrome's `readonly` flag: such playlists are greyed out in Save to and explained on their page |
+| 3 | The player's cover gradient was barely visible (a red cover didn't look red) | App | 0.5.4 | Uses the cover's main colour with set brightness, and a stronger gradient |
 | 1 | Going back with the Android back gesture showed both screens faded over each other (e.g. a movie page over the composer's movie grid) | App | 0.3.3 | Screens now slide in and out with a solid background, following the finger during the gesture. Switching tabs fades |
 | 2 | A slow back swipe shrank the page toward the middle over the previous screen, while a fast swipe looked fine | App | 0.4.0 | Navigation Compose's separate back-gesture animation defaulted to shrinking the page. It now uses the same animation as the back button. Screen changes also switched to the Material shared-axis transition (short sideways move with a quick fade, 0.3 seconds) |
 

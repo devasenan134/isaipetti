@@ -7,6 +7,18 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.5.4 (unreleased)
+
+### New
+- **Recently played on Home shows everything.** Songs, movies, playlists, composers (from Shuffle all), artists and Liked songs, newest first. Composers and artists have **round** tiles; songs, movies, playlists and Liked songs are **square**. Tapping a song plays it; anything else opens its page.
+- **Resume on movies and Liked songs**, not only playlists: continue from the song you were on, in the same order as before.
+
+### Fixed
+- **Changing a read-only playlist failed with "Couldn't change".** Navidrome doesn't allow changing the songs of smart playlists or playlists kept in sync with a playlist file on the server, even for their owner. The app now knows which ones those are: in **Save to** they're greyed out with an explanation, and on their page "Remove from this playlist" is hidden and a note explains why. Renaming, public/private and deleting still work.
+- **The player's colour now really matches the cover.** It was using the cover's muted shades, blended only lightly into the background, so a red cover barely looked red. It now takes the cover's main colour (a red cover gives a deep red in dark mode, a soft pink in light mode) and shows it clearly at the top, easing into the background around the controls.
+
+---
+
 ## 0.5.3 (2026-09-23): Swipe gestures, cover colours and resume
 
 ### New
