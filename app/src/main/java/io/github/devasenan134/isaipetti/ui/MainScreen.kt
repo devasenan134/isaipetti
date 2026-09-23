@@ -7,6 +7,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -178,16 +184,20 @@ fun MainScreen() {
                 }
             },
         ) { padding ->
-            // Opening a screen slides it in from the right; going back slides it away again, following
-            // the finger during Android's back gesture. Switching tabs just fades.
+            // Material "shared axis" transition, as in most Android apps: the old screen fades out quickly
+            // while the new one fades in and moves a short way sideways. Android's back gesture plays the
+            // same motion in reverse, following the finger. Switching tabs just fades.
             NavHost(
                 navController,
                 startDestination = HomeRoute,
                 modifier = Modifier.padding(padding),
-                enterTransition = { if (targetState.isTab()) fadeIn() else slideInHorizontally { it } },
-                exitTransition = { if (targetState.isTab()) fadeOut() else slideOutHorizontally { -it / 4 } },
-                popEnterTransition = { slideInHorizontally { -it / 4 } },
-                popExitTransition = { slideOutHorizontally { it } },
+                enterTransition = { if (targetState.isTab()) fadeIn(tween(200)) else sharedAxisIn(forward = true) },
+                exitTransition = { if (targetState.isTab()) fadeOut(tween(200)) else sharedAxisOut(forward = true) },
+                popEnterTransition = { sharedAxisIn(forward = false) },
+                popExitTransition = { sharedAxisOut(forward = false) },
+                // Without these, a slow back swipe uses the library's own "shrink the page" animation instead.
+                predictivePopEnterTransition = { sharedAxisIn(forward = false) },
+                predictivePopExitTransition = { sharedAxisOut(forward = false) },
             ) {
                 screen<HomeRoute> { HomeScreen(nav) }
                 screen<AlbumsRoute> { AlbumsScreen(nav) }
@@ -219,6 +229,17 @@ fun MainScreen() {
         BackHandler(enabled = playerOpen) { playerOpen = false }
     }
 }
+
+private const val AXIS_MS = 300
+private const val AXIS_FADE_OUT_MS = 90
+
+private fun sharedAxisIn(forward: Boolean): EnterTransition =
+    slideInHorizontally(tween(AXIS_MS, easing = FastOutSlowInEasing)) { if (forward) it / 10 else -it / 10 } +
+        fadeIn(tween(AXIS_MS - AXIS_FADE_OUT_MS, delayMillis = AXIS_FADE_OUT_MS, easing = LinearOutSlowInEasing))
+
+private fun sharedAxisOut(forward: Boolean): ExitTransition =
+    slideOutHorizontally(tween(AXIS_MS, easing = FastOutSlowInEasing)) { if (forward) -it / 10 else it / 10 } +
+        fadeOut(tween(AXIS_FADE_OUT_MS, easing = FastOutLinearInEasing))
 
 private fun NavBackStackEntry.isTab() = tabs.any { destination.hasRoute(it.route::class) }
 
