@@ -4,7 +4,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat and sign-up
-- **Current version:** 0.5.3 (app `versionCode` 14)
+- **Current version:** 0.5.4 (app `versionCode` 15)
 - **Last updated:** 2026-09-23
 
 ---
@@ -28,6 +28,12 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.5.4: Recently played, resume everywhere and fixes
+- Recently played on Home shows songs, movies, playlists, composers, artists and Liked songs (round tiles for composers and artists)
+- Resume on movies and Liked songs as well as playlists
+- Fixed: smart and file-synced playlists are read-only and now explained instead of failing
+- Fixed: the player's colour clearly matches the cover
 
 ### 0.5.3: Swipe gestures, cover colours and resume
 - Swipe down to minimize the player; gentle gradient matched to the cover
@@ -113,8 +119,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Recently played on Home with every kind (round tiles for composers and artists) | App | P2 | 0.5.4 | Built | Recent activity kept on the phone |
-| Resume on movies and Liked songs | App | P2 | 0.5.4 | Built | |
+| _nothing right now_ | | | | | |
 
 ---
 

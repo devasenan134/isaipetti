@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.5.4 (unreleased)
+## 0.5.4 (2026-09-23): Recently played, resume everywhere and fixes
 
 ### New
 - **Recently played on Home shows everything.** Songs, movies, playlists, composers (from Shuffle all), artists and Liked songs, newest first. Composers and artists have **round** tiles; songs, movies, playlists and Liked songs are **square**. Tapping a song plays it; anything else opens its page.
