@@ -28,6 +28,9 @@ import kotlin.test.assertTrue
 /** Pretends to be Navidrome: a login works when the token is "ok-<username>". */
 private class FakeNavidrome : Navidrome(Config(0, "", "http://unused", "", "")) {
     val created = mutableListOf<String>()
+    /** What Navidrome's user list returns; null means "Navidrome unreachable". */
+    var existing: Set<String>? = null
+    override suspend fun userNames() = existing
     override suspend fun checkLogin(username: String, salt: String, token: String) = token == "ok-$username"
     override suspend fun createUser(username: String, displayName: String, password: String) {
         if (username in created) throw ApiError(HttpStatusCode.Conflict, "That username is taken")
@@ -107,6 +110,52 @@ class FlowTest {
         val offline = aliceWs.nextPresence(bob.user.id)
         assertEquals(false, offline.online)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/friends") { bearerAuth("nope") }.status)
+    }
+
+    @Test
+    fun `people deleted from Navidrome are cleaned up`() = testApplication {
+        val navidrome = FakeNavidrome()
+        val path = dbFile()
+        application { isaipettiSocial(Config(0, path, "http://unused", "", ""), navidrome) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+
+        val alice = client.login("alice")
+        val carol = client.login("carol")
+        val code = client.postJson("/invites", Unit, alice.sessionToken).body<InviteDto>().code
+        val bob = client.postJson("/auth/signup", SignupRequest(code, "bob", "longpassword", "Bob")).body<SessionResponse>()
+        client.postJson("/friends/requests", AddFriendRequest("carol"), alice.sessionToken)
+        client.postJson("/friends/requests/${alice.user.id}/accept", Unit, carol.sessionToken)
+        val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
+        client.postJson("/conversations/${dm.id}/messages", SendMessageRequest("hi alice"), bob.sessionToken)
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id, carol.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+
+        // The cleanup job runs against the same database file (the app's own copy runs on a timer).
+        val cleanup = Cleanup(Db(path), navidrome, Hub { emptyList() })
+
+        // Navidrome unreachable, or a list that would remove most people: do nothing.
+        navidrome.existing = null
+        assertEquals(emptyList(), cleanup.run())
+        navidrome.existing = setOf("alice")
+        assertEquals(emptyList(), cleanup.run())
+
+        // Bob's account is deleted in Navidrome.
+        navidrome.existing = setOf("alice", "carol")
+        assertEquals(listOf("bob"), cleanup.run())
+        assertEquals(listOf("carol"), client.friends(alice).map { it.user.username })
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/me") { bearerAuth(bob.sessionToken) }.status)
+        // His old message is still there, marked as left, but the DM is closed.
+        val history = client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", alice)
+        assertEquals("Bob (left)" to "hi alice", history.single().sender.displayName to history.single().body)
+        assertEquals(HttpStatusCode.Forbidden, client.postJson("/conversations/${dm.id}/messages", SendMessageRequest("hello?"), alice.sessionToken).status)
+        // He's gone from the group.
+        val groupNow = client.getJson<List<ConversationDto>>("/conversations", alice).first { it.id == group.id }
+        assertEquals(setOf("alice", "carol"), groupNow.members.map { it.username }.toSet())
+
+        // If "bob" is created again later, it's a brand-new person with no friends.
+        val newBob = client.login("bob")
+        assertTrue(newBob.user.id != bob.user.id)
+        assertEquals(emptyList(), client.friends(newBob))
     }
 
     /** Retries [condition] for up to 5 seconds (the server registers WebSockets asynchronously). */

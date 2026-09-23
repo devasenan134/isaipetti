@@ -33,7 +33,11 @@ import io.ktor.websocket.readText
 import kotlinx.serialization.SerializationException
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 private val log = LoggerFactory.getLogger("isaipetti-social")
 
@@ -51,6 +55,15 @@ fun Application.isaipettiSocial(config: Config, navidrome: Navidrome = Navidrome
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
     val chat = Chat(db, friends, hub)
     val limiter = RateLimiter(maxPerMinute = 10)
+    val cleanup = Cleanup(db, navidrome, hub)
+    // Every 10 minutes, remove people whose Navidrome account is gone.
+    launch {
+        delay(30.seconds)
+        while (isActive) {
+            runCatching { cleanup.run() }.onFailure { log.warn("Cleanup failed", it) }
+            delay(10.minutes)
+        }
+    }
 
     install(ContentNegotiation) { json(eventJson) }
     install(CallLogging)

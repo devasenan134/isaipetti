@@ -61,6 +61,20 @@ open class Navidrome(private val config: Config) {
         }
     }
 
+    /** Every username in Navidrome (lowercase), or null if the list couldn't be fetched. */
+    open suspend fun userNames(): Set<String>? {
+        if (config.navidromeAdminUser.isBlank()) return null
+        return runCatching {
+            val response = http.get("${config.navidromeUrl}/api/user") {
+                header("X-ND-Authorization", "Bearer ${adminLogin()}")
+                parameter("_start", 0)
+                parameter("_end", 10_000)
+            }
+            if (!response.status.isSuccess()) return null
+            response.body<List<JsonObject>>().mapNotNull { it["userName"]?.jsonPrimitive?.content?.lowercase() }.toSet()
+        }.getOrNull()
+    }
+
     private suspend fun adminLogin(): String {
         val response = http.post("${config.navidromeUrl}/auth/login") {
             contentType(ContentType.Application.Json)

@@ -1,6 +1,8 @@
 package io.github.devasenan134.isaipetti.server
 
+import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
+import io.ktor.websocket.close
 import io.ktor.websocket.WebSocketSession
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -84,6 +86,13 @@ class Hub(private val friendsOf: suspend (Long) -> List<Long>) {
                 announcePresence(userId)
             }
         }
+    }
+
+    /** Closes every connection of a user (their account was removed). */
+    suspend fun kick(userId: Long) {
+        val sessions = lock.withLock { connections.remove(userId)?.toList().orEmpty() }
+        nowPlaying.remove(userId)
+        sessions.forEach { runCatching { it.close(CloseReason(CloseReason.Codes.NORMAL, "Account removed")) } }
     }
 
     /** Sends [event] to every connected device of [userIds]. Returns the users who were offline. */

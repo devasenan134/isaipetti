@@ -66,6 +66,15 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
         val (message, members) = db.tx {
             requireMember(conversationId, me.id)
+            // A DM only works while you're still friends (and they still have an account).
+            val dmPartner = queryOne(
+                """SELECT cm.user_id FROM conversations c JOIN conversation_members cm ON cm.conversation_id = c.id
+                   WHERE c.id = ? AND c.kind = 'dm' AND cm.user_id != ?""",
+                conversationId, me.id,
+            ) { it.getLong(1) }
+            if (dmPartner != null && queryOne("SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ?", me.id, dmPartner) { true } == null) {
+                throw ApiError(HttpStatusCode.Forbidden, "You can't message this person anymore")
+            }
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
                 "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at) VALUES (?, ?, ?, ?, ?)",

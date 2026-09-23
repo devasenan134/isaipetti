@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -111,6 +111,9 @@ class Db(path: String) {
                 updated_at INTEGER NOT NULL
             )
         """.trimIndent()
+
+        // Users removed from Navidrome are kept (renamed) so old chat messages still have a sender.
+        val SCHEMA_V2 = "ALTER TABLE users ADD COLUMN deleted_at INTEGER"
     }
 }
 
