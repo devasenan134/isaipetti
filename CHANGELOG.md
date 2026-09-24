@@ -7,12 +7,19 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.6.18 (2026-09-24): Group members
+## 0.6.18 (2026-09-24): Group members, and Now playing on Home
 
 ### New
 - **See who's in a group.** Tap a group chat's name (or the names under it) to see its members, sorted into **In the jam**, **Online** and **Offline**. The jam's host has the DJ deck next to their name, and the group's owner is marked.
 - **Add and remove people later.** The group's owner can add friends (**Add people**) or remove someone (✕ next to their name) from that list, or from ⋮ → **Members**. Someone who's added sees the chat from that moment on, not its earlier messages. Someone who's removed loses the chat. Everyone sees "… added …" or "… removed …" in the chat.
 - **Long-press a profile picture** (or a group photo) to see it large. Tap anywhere to close it.
+- **Now playing on Home.** The first tile in **Jump back in** is what's playing: the playlist, movie, mix, artist or Liked songs you started, with a record turning on it (it stops when you pause). Tap it to go back there.
+- **The playing song stands out.** In **Recently Played** and in song lists, the song that's playing has bars moving up and down on it (they rest while it's paused).
+- **Swipe between tabs** on the Friends page (Chats and Friends) and on Search → Movies (A–Z, Newest, Oldest, Recently added), like in Your Library.
+
+### Fixed
+- **Liking your own playlist keeps it in My Playlists.** Before, it moved to the other playlists.
+- **Mixes in Jump back in have their own art again** (the same picture as everywhere else), not the cover of one of their songs.
 
 ### Server
 - `POST /conversations/{id}/members` (`{"userIds": [...]}`) and `DELETE /conversations/{id}/members/{userId}`, for the group's owner only. `GET /conversations/{id}/online` lists which members have the app open.
