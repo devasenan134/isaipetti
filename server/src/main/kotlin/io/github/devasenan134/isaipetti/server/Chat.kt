@@ -10,7 +10,7 @@ import java.sql.ResultSet
  * A message is text, a shared song, or both. Messages are saved, so history is there
  * when you open the app; people who are online also get them instantly through the [Hub].
  */
-class Chat(private val db: Db, private val friends: Friends, private val hub: Hub) {
+class Chat(private val db: Db, private val friends: Friends, private val hub: Hub, private val groupPictures: PictureFolder) {
     /** Who is listening together in a chat (set once listen-together is running). */
     var listenersOf: (Long) -> List<Long> = { emptyList() }
 
@@ -162,6 +162,34 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         message?.let { hub.send(members, MessageEvent(it)) }
     }
 
+    /**
+     * Sets (or with null, removes) a group's photo. Anyone in the group can, like in WhatsApp; the chat
+     * shows who did it.
+     */
+    suspend fun setGroupPicture(me: UserDto, conversationId: Long, picture: Picture?): ConversationDto {
+        db.tx {
+            requireMember(conversationId, me.id)
+            requireGroup(conversationId, "Only group chats have a photo")
+        }
+        if (picture == null) groupPictures.remove(conversationId) else groupPictures.save(conversationId, picture)
+        val (message, members, conversation) = db.tx {
+            update("UPDATE conversations SET picture_at = ? WHERE id = ?", picture?.let { now() }, conversationId)
+            val id = insert(
+                "INSERT INTO messages (conversation_id, sender_id, body, created_at, system) VALUES (?, ?, ?, ?, 1)",
+                conversationId, me.id, if (picture == null) "removed the group photo" else "changed the group photo", now(),
+            )
+            Triple(queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!, memberIds(conversationId), conversation(conversationId, me.id))
+        }
+        hub.send(members, MessageEvent(message))
+        return conversation
+    }
+
+    /** A group's photo file, for its members only; null if it has none. */
+    suspend fun groupPicture(userId: Long, conversationId: Long): java.io.File? {
+        db.tx { requireMember(conversationId, userId) }
+        return groupPictures.get(conversationId)
+    }
+
     /** Deletes a group and all its messages for every member. Only its owner can. */
     suspend fun deleteForEveryone(me: UserDto, conversationId: Long) {
         val members = db.tx {
@@ -195,6 +223,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         val (kind, name, owner) = queryOne("SELECT kind, name, created_by FROM conversations WHERE id = ?", id) {
             Triple(it.getString(1), it.getString(2), it.getLong(3))
         }!!
+        val picture = queryOne("SELECT picture_at FROM conversations WHERE id = ?", id) { rs -> rs.getObject(1)?.let { (it as Number).toLong() } }
         val members = query(
             "SELECT u.* FROM conversation_members cm JOIN users u ON u.id = cm.user_id WHERE cm.conversation_id = ?", id,
         ) { it.toUser() }
@@ -212,7 +241,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         } else {
             others.isNotEmpty()
         }
-        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id), createdBy = owner)
+        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id), createdBy = owner, picture = picture)
     }
 
     /** Who is in a chat (for listen-together). */
@@ -237,7 +266,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
     )
 
     private companion object {
-        const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name
+        const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at
             FROM messages m JOIN users u ON u.id = m.sender_id"""
     }
 }

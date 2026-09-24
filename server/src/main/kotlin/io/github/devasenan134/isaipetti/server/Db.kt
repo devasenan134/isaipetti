@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -140,6 +140,12 @@ class Db(path: String) {
                 PRIMARY KEY (user_id, playlist_id)
             )
         """.trimIndent()
+
+        // Profile pictures (the image is a file next to the database; this is when it was set).
+        val SCHEMA_V8 = "ALTER TABLE users ADD COLUMN avatar_at INTEGER"
+
+        // Group photos, the same way.
+        val SCHEMA_V9 = "ALTER TABLE conversations ADD COLUMN picture_at INTEGER"
 
         // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,
         // and when each mix's songs last changed.

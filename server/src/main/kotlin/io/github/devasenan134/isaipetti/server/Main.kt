@@ -19,6 +19,7 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondFile
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
@@ -65,7 +66,7 @@ fun Application.isaipettiSocial(
     val hub = Hub(friends::friendIds)
     friends.hub = hub
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
-    val chat = Chat(db, friends, hub)
+    val chat = Chat(db, friends, hub, PictureFolder(config.dbPath, "group-pictures"))
     val listen = ListenTogether(hub, chat::members)
     chat.listenersOf = listen::listeners
     chat.onLeft = listen::leftChat
@@ -79,6 +80,7 @@ fun Application.isaipettiSocial(
     }
     val bugReports = BugReports(issueTracker)
     val playlistLikes = PlaylistLikes(db)
+    val pictures = Pictures(db, navidrome, config.dbPath)
     val mixes = music?.let { MixService(db, it, java.time.ZoneId.of(config.timeZone)) }
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
@@ -162,6 +164,24 @@ fun Application.isaipettiSocial(
         authenticate("session") {
             get("/me") { call.respond(call.me()) }
             patch("/me") { call.respond(accounts.rename(call.me().id, call.receive<RenameRequest>().displayName)) }
+            // Profile pictures: the body is the image itself.
+            put("/me/avatar") { call.respond(pictures.setAvatar(call.me().id, Picture(call.receive<ByteArray>()))) }
+            delete("/me/avatar") { call.respond(pictures.removeAvatar(call.me().id)) }
+            get("/users/{id}/avatar") {
+                val file = pictures.avatar(call.longParam("id")) ?: throw ApiError(HttpStatusCode.NotFound, "No picture")
+                // The app asks with ?v=<when it was set>, so a new picture has a new address and this can be cached.
+                call.response.headers.append(HttpHeaders.CacheControl, "private, max-age=2592000")
+                call.respondFile(file)
+            }
+            // A cover for a playlist you made (stored in Navidrome, which the server changes as admin after checking).
+            put("/playlists/{id}/cover") {
+                pictures.setPlaylistCover(call.me(), call.parameters["id"].orEmpty(), Picture(call.receive<ByteArray>()))
+                call.respond(HttpStatusCode.NoContent)
+            }
+            delete("/playlists/{id}/cover") {
+                pictures.setPlaylistCover(call.me(), call.parameters["id"].orEmpty(), null)
+                call.respond(HttpStatusCode.NoContent)
+            }
             post("/auth/logout-others") {
                 accounts.logoutOthers(call.me().id, call.bearerToken())
                 call.respond(HttpStatusCode.NoContent)
@@ -228,6 +248,10 @@ fun Application.isaipettiSocial(
             route("/invites") {
                 get { call.respond(accounts.invites(call.me().id)) }
                 post { call.respond(accounts.createInvite(call.me().id)) }
+                delete("/{code}") {
+                    accounts.deleteInvite(call.me().id, call.parameters["code"].orEmpty())
+                    call.respond(HttpStatusCode.NoContent)
+                }
             }
 
             route("/friends") {
@@ -261,6 +285,13 @@ fun Application.isaipettiSocial(
                 delete("/{id}") {
                     chat.delete(call.me().id, call.longParam("id"))
                     call.respond(HttpStatusCode.NoContent)
+                }
+                put("/{id}/picture") { call.respond(chat.setGroupPicture(call.me(), call.longParam("id"), Picture(call.receive<ByteArray>()))) }
+                delete("/{id}/picture") { call.respond(chat.setGroupPicture(call.me(), call.longParam("id"), null)) }
+                get("/{id}/picture") {
+                    val file = chat.groupPicture(call.me().id, call.longParam("id")) ?: throw ApiError(HttpStatusCode.NotFound, "No photo")
+                    call.response.headers.append(HttpHeaders.CacheControl, "private, max-age=2592000")
+                    call.respondFile(file)
                 }
                 post("/{id}/leave") {
                     chat.leave(call.me(), call.longParam("id"))

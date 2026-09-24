@@ -5,6 +5,12 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.client.request.delete
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
+import io.ktor.http.encodeURLPathPart
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -82,6 +88,44 @@ open class Navidrome(private val config: Config) {
                 NavidromeUser(id, name)
             }
         }.getOrNull()
+    }
+
+    /** Who made a playlist (their Navidrome id), or null if there's no such playlist. */
+    open suspend fun playlistOwner(playlistId: String): String? {
+        requireAdmin()
+        val response = adminCall { token -> http.get("${config.navidromeUrl}/api/playlist/${playlistId.encodeURLPathPart()}") { header("X-ND-Authorization", "Bearer $token") } }
+        if (!response.status.isSuccess()) return null
+        return runCatching { response.body<JsonObject>()["ownerId"]?.jsonPrimitive?.content }.getOrNull()
+    }
+
+    /** Uploads a playlist's cover (Navidrome keeps it; getCoverArt then shows it). */
+    open suspend fun setPlaylistImage(playlistId: String, picture: Picture) {
+        requireAdmin()
+        val response = adminCall { token ->
+            http.submitFormWithBinaryData(
+                "${config.navidromeUrl}/api/playlist/${playlistId.encodeURLPathPart()}/image",
+                formData {
+                    append("image", picture.bytes, Headers.build {
+                        append(HttpHeaders.ContentType, picture.type.toString())
+                        append(HttpHeaders.ContentDisposition, "filename=\"cover.${picture.extension}\"")
+                    })
+                },
+            ) { header("X-ND-Authorization", "Bearer $token") }
+        }
+        if (!response.status.isSuccess()) throw ApiError(HttpStatusCode.BadGateway, "Navidrome didn't take the cover (${response.status.value})")
+    }
+
+    /** Back to the automatic cover made from the playlist's songs. */
+    open suspend fun removePlaylistImage(playlistId: String) {
+        requireAdmin()
+        val response = adminCall { token ->
+            http.delete("${config.navidromeUrl}/api/playlist/${playlistId.encodeURLPathPart()}/image") { header("X-ND-Authorization", "Bearer $token") }
+        }
+        if (!response.status.isSuccess()) throw ApiError(HttpStatusCode.BadGateway, "Navidrome didn't remove the cover (${response.status.value})")
+    }
+
+    private fun requireAdmin() {
+        if (config.navidromeAdminUser.isBlank()) throw ApiError(HttpStatusCode.ServiceUnavailable, "Playlist covers aren't set up on this server yet")
     }
 
     /** Navidrome's permanent id for [username], or null if unknown / not available. */

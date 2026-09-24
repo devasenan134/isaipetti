@@ -93,6 +93,12 @@ class Accounts(private val db: Db, private val navidrome: Navidrome, private val
         InviteDto(formatCode(code), expiresAt)
     }
 
+    /** Deletes one of your unused invites, so the code stops working and frees a place for a new one. */
+    suspend fun deleteInvite(userId: Long, code: String) = db.tx {
+        val deleted = update("DELETE FROM invites WHERE code = ? AND created_by = ? AND used_by IS NULL", normalizeCode(code), userId)
+        if (deleted == 0) throw ApiError(HttpStatusCode.NotFound, "That invite is already used or isn't yours")
+    }
+
     /** Your invites from the last 30 days, newest first, including who used them. */
     suspend fun invites(userId: Long): List<InviteDto> = db.tx {
         query(
