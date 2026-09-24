@@ -63,6 +63,9 @@ PROMPTS = {
     "rock": ["a rock song with electric guitars and drums"],
     "acoustic": ["an acoustic guitar song", "unplugged acoustic music"],
     "male": ["a song sung by a male singer"],
+    # Which music world a song is from: the server uses these to keep languages apart in mixes.
+    "indianfilm": ["an Indian film song", "a Tamil movie song with Indian instruments and vocals"],
+    "western": ["a Western English pop song", "an English language song from the US or UK charts"],
     "female": ["a song sung by a female singer"],
 }
 
