@@ -7,6 +7,31 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.1 (2026-09-24): Pictures, invites, page colours and a bigger look
+
+### New
+- **Profile pictures.** In Settings, tap your picture to **take a photo** or **choose one from your photos** (or remove it). It's cropped to a square and made small on the phone, and your friends see it in their friends list, chats and the share sheet.
+- **Group photos.** In a group chat, ⋮ → **Change group photo**. Anyone in the group can change or remove it, and the chat shows who did.
+- **Playlist covers.** On a playlist you made, ⋮ → **Change cover** to use a photo instead of the automatic cover (or go back to it). Covers are stored in Navidrome, so they show everywhere, even in other Navidrome apps.
+- **Manage your invites.** Friends → Invite now opens **Your invites**: every unused code with when it expires, and buttons to **copy** it, **share** it again or **delete** it (asks first; the code stops working). **New invite** makes another, up to 5 unused at a time, and "3 of 5 left" shows how many you can still make. Used and expired codes from the last month are listed below, with who joined.
+- **Colour on every page, like the player.** Movie, playlist, singer and composer pages take a colour from their cover and fade it into the background behind the header. Mixes use their own colour, and Liked songs the brand colour.
+- **Your Library as a grid or a list.** The button next to **+** switches between them; the phone remembers your choice. **Swipe left and right** to move between All, Movies and Playlists.
+- **"Made for you" says your name.** On Home it's **Made for <your name>**, and mixes picked for your taste say **Made for <your name> · By Isai Pettai** on their page and in Your Library. Mixes everyone gets alike (Top 50, stations) don't.
+
+### Improved
+- **Bigger tiles and pictures, closer to Spotify.** Tiles on Home and Search, grid tiles, Your Library pictures, song covers in lists and the big picture on movie, playlist and mix pages are all larger, and section titles are bigger and bold.
+
+### Fixed
+- **Every song in Liked songs, and in playlists you made, had a ✓.** It said nothing new there. In Liked songs the ✓ now shows only for songs also in one of your playlists; in your own playlists, only for songs you've also liked or put in another playlist.
+
+### Server
+- Unused invites can be deleted (`DELETE /invites/{code}`).
+- Mixes say whether they were picked for the person (`personal`).
+- Profile pictures (`PUT/DELETE /me/avatar`, `GET /users/{id}/avatar`) and group photos (`/conversations/{id}/picture`), kept as files next to the database.
+- Playlist covers (`PUT/DELETE /playlists/{id}/cover`): the server checks you made the playlist, then stores the picture in Navidrome with its admin account, so the phone never needs your Navidrome password for it.
+
+---
+
 ## 0.6.0 (2026-09-23): Mixes by Isai Pettai (Phase 4)
 
 ### New

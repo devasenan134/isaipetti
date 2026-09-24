@@ -5,7 +5,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat, sign-up and mixes
 - **Analyzer:** optional audio analyzer in `analyzer/` (Python + CLAP) for moods and sound-alikes
-- **Current version:** 0.6.0 (app `versionCode` 16)
+- **Current version:** 0.6.1 (app `versionCode` 17)
 - **Last updated:** 2026-09-23
 
 ---
@@ -29,6 +29,14 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.6.1: Pictures, invites, page colours and a bigger look
+- Profile pictures, group photos and playlist covers (take a photo or choose one)
+- Your invites: copy, share again or delete unused codes; see who joined
+- Cover-coloured gradients on movie, playlist, mix, singer, composer and Liked songs pages
+- Your Library as a grid or a list, swipe between All, Movies and Playlists; "Made for <your name>" on personal mixes
+- Bigger tiles, pictures and section titles
+- Fixed: every song in Liked songs showed a ✓
 
 ### 0.6.0: Mixes by Isai Pettai (Phase 4)
 - Made for you: Daily Mix 1–6, Discover Weekly, On Repeat, Rewind, New Arrivals, Friends Mix, Top 50
@@ -169,6 +177,7 @@ Features not yet agreed. Add freely.
 
 | # | Bug | Area | Fixed in | Notes |
 |---|---|---|---|---|
+| 5 | Every song in Liked songs and in your own playlists showed a ✓ | App | 0.6.1 | There the ✓ now means "also saved somewhere else" |
 | 4 | Changing a smart or file-synced playlist failed with "Couldn't change" | App | 0.5.4 | Uses Navidrome's `readonly` flag: such playlists are greyed out in Save to and explained on their page |
 | 3 | The player's cover gradient was barely visible (a red cover didn't look red) | App | 0.5.4 | Uses the cover's main colour with set brightness, and a stronger gradient |
 | 1 | Going back with the Android back gesture showed both screens faded over each other (e.g. a movie page over the composer's movie grid) | App | 0.3.3 | Screens now slide in and out with a solid background, following the finger during the gesture. Switching tabs fades |
