@@ -216,6 +216,11 @@ fun Application.isaipettiSocial(
 
             route("/likes/playlists") {
                 get { call.respond(playlistLikes.list(call.me().id)) }
+                // ?ids=a,b,c -> {"a": 3, "b": 0, ...}: how many others liked each (shown on your own playlists).
+                get("/counts") {
+                    val ids = call.request.queryParameters["ids"].orEmpty().split(',')
+                    call.respond(playlistLikes.counts(call.me().id, ids))
+                }
                 put {
                     playlistLikes.like(call.me().id, call.receive())
                     call.respond(HttpStatusCode.NoContent)
