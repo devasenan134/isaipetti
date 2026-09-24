@@ -68,8 +68,10 @@ fun Application.isaipettiSocial(
     friends.hub = hub
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
     val chat = Chat(db, friends, hub, PictureFolder(config.dbPath, "group-pictures"))
-    val listen = ListenTogether(hub, chat::members)
+    val listen = ListenTogether(hub, chat::members, this, config.listenOwnerGraceMs)
     chat.listenersOf = listen::listeners
+    chat.listenOwnerOf = listen::owner
+    listen.onEnded = chat::expireRequests
     chat.onLeft = listen::leftChat
     chat.onRemoved = listen::ended
     val push = Push(db, pushSender)
@@ -161,7 +163,7 @@ fun Application.isaipettiSocial(
             } finally {
                 hub.disconnected(user.id, this)
                 // Offline on every device: leave any listen-together session.
-                if (!hub.isOnline(user.id)) listen.leaveAll(user.id)
+                if (!hub.isOnline(user.id)) listen.wentOffline(user.id)
             }
         }
 
@@ -317,6 +319,17 @@ fun Application.isaipettiSocial(
                 delete("/{id}/everyone") {
                     chat.deleteForEveryone(call.me(), call.longParam("id"))
                     call.respond(HttpStatusCode.NoContent)
+                }
+                // Song requests while listening together: a listener asks, the session's owner answers.
+                post("/{id}/listen/requests") {
+                    val id = call.longParam("id")
+                    listen.requireRequester(call.me().id, id)
+                    call.respond(chat.requestSong(call.me(), id, call.receive<SongRequestBody>().song))
+                }
+                post("/{id}/listen/requests/{messageId}") {
+                    val id = call.longParam("id")
+                    listen.requireOwner(call.me().id, id)
+                    call.respond(chat.answerRequest(id, call.longParam("messageId"), call.receive<SongRequestAnswer>().accept))
                 }
                 post("/{id}/read") {
                     chat.markRead(call.me().id, call.longParam("id"), call.receive<MarkReadRequest>().messageId)

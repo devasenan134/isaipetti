@@ -7,6 +7,25 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.9 (2026-09-24): Jams have a host
+
+### New
+- **Whoever starts a jam runs it.** In a chat or a group, only the person who started listening together can play, pause, skip, seek or change the queue. Everyone else hears the same music; their controls are greyed out (and presses on the lock screen or in the notification are ignored).
+- **Ask for a song.** In someone else's jam, swiping a song (either way), or **Play next** / **Add to queue**, sends a request in the chat. The host gets **Accept** and **Decline**; an accepted song plays after the current one, in the order requests were accepted. Everyone sees whether a request was accepted, declined, or left unanswered when the jam ended.
+- **The mini player shows the jam.** Listeners see a jam icon where pause and next were. The host sees a small record spinning next to pause and next.
+
+### Improved
+- The player says whose jam you're in ("Alice's jam · they control the music").
+
+### Fixed
+- Swiping a song sometimes played it next (or queued it) twice.
+
+### Server
+- Sessions have an owner. The session ends when the owner leaves, or stays offline for more than a minute.
+- `POST /conversations/{id}/listen/requests` and `POST /conversations/{id}/listen/requests/{messageId}` for song requests, and a `messageUpdated` event when one is answered.
+
+---
+
 ## 0.6.7 (2026-09-24): Listening stats for admins
 
 ### New

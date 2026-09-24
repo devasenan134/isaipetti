@@ -24,6 +24,8 @@ data class Config(
     val castFile: String? = null,
     /** Where "today" is for Daily Mixes and when Discover Weekly changes. */
     val timeZone: String = "Asia/Kolkata",
+    /** How long a listening session waits for its owner to reconnect before it ends. */
+    val listenOwnerGraceMs: Long = 60_000,
 ) {
     companion object {
         fun fromEnv(): Config {
