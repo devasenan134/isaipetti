@@ -5,7 +5,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat, sign-up and mixes
 - **Analyzer:** optional audio analyzer in `analyzer/` (Python + CLAP) for moods and sound-alikes
-- **Current version:** 0.6.1 (app `versionCode` 17)
+- **Current version:** 0.6.2 (app `versionCode` 18)
 - **Last updated:** 2026-09-23
 
 ---
@@ -29,6 +29,11 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.6.2: Made for you vs. showcases, cropping photos, and a tidier Your Library
+- Crop, zoom and rotate photos before using them (profile, group, playlist cover)
+- Made for <name> only on mixes from your listening, plus Your stations; This Is <composer/singer> showcases
+- Bigger Home tiles; compact Your Library; sections All, Playlists, My Playlists, Movies
 
 ### Server update: better mood mixes, composer and singer mixes
 - Chill, Sleep and Focus share no songs and check measured loudness and rhythm; composer and singer mixes have only their songs

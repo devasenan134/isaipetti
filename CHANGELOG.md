@@ -7,6 +7,21 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.2 (2026-09-24): Made for you vs. showcases, cropping photos, and a tidier Your Library
+
+### New
+- **Crop your photos.** After you take or choose a photo for your profile, a group or a playlist cover, it opens so you can frame it: pinch to zoom, drag to move, **Rotate** to turn it. Profile and group pictures show a round guide, since that's how they appear.
+
+### Improved
+- **"Made for you" means it.** Only mixes built from your own listening say **Made for <your name>**: Daily Mixes, Discover Weekly, On Repeat, Friends Mix and Rewind, plus a new **Your stations** row (radio from the songs you play most).
+- **Showcases for the library's composers and singers.** **This Is A.R. Rahman**, **This Is S. P. Balasubrahmanyam** and so on: their most played songs, the same for everyone. Mood, decade and **Composer and singer stations** rows are showcases too, and **Popular and new** has Top 50 and New Arrivals (newest first).
+- **Bigger tiles on Home** (and in Search's rows).
+- **Your Library is more compact:** smaller pictures in the list, and three tiles across in the grid.
+- **"About this song" shows one Composer line** instead of both "Music director" and "Composer", which were the same person for film songs.
+- **Your Library sections are All, Playlists, My Playlists, Movies.** Playlists has the mixes and playlists you saved; My Playlists has Liked songs and the playlists you made.
+
+---
+
 ## Server update (2026-09-24): better mood mixes, composer and singer mixes
 
 No app update needed; the friends server changed.
