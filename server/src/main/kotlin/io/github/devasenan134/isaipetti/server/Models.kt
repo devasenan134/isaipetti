@@ -8,12 +8,20 @@ import java.sql.ResultSet
 class ApiError(val status: HttpStatusCode, override val message: String) : Exception(message)
 
 @Serializable
-data class UserDto(val id: Long, val username: String, val displayName: String)
+data class UserDto(
+    val id: Long,
+    val username: String,
+    val displayName: String,
+    /** When their profile picture was last set (a version for GET /users/{id}/avatar), or null for none. */
+    val avatar: Long? = null,
+)
 
 fun ResultSet.toUser(prefix: String = "") = UserDto(
     id = getLong("${prefix}id"),
     username = getString("${prefix}username"),
     displayName = getString("${prefix}display_name"),
+    // Not every query selects it.
+    avatar = runCatching { getObject("${prefix}avatar_at")?.let { (it as Number).toLong() } }.getOrNull(),
 )
 
 /**
@@ -77,6 +85,8 @@ data class ConversationDto(
     val listeners: List<Long> = emptyList(),
     /** The group's owner: the only one who can delete it for everyone. */
     val createdBy: Long? = null,
+    /** When the group's photo was set (a version for GET /conversations/{id}/picture), or null for none. */
+    val picture: Long? = null,
 )
 
 @Serializable data class NewDmRequest(val userId: Long)

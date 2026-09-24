@@ -82,6 +82,14 @@ class FlowTest {
         assertEquals(listOf("alice"), client.friends(bob).map { it.user.username })
         assertEquals("bob", client.getJson<List<InviteDto>>("/invites", alice).single().usedBy?.username)
 
+        // A used invite can't be deleted; an unused one can, and then its code no longer works.
+        assertEquals(HttpStatusCode.NotFound, client.delete("/invites/${invite.code}") { bearerAuth(alice.sessionToken) }.status)
+        val spare = client.postJson("/invites", Unit, alice.sessionToken).body<InviteDto>()
+        assertEquals(HttpStatusCode.NotFound, client.delete("/invites/${spare.code}") { bearerAuth(bob.sessionToken) }.status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/invites/${spare.code}") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(HttpStatusCode.BadRequest, client.postJson("/auth/signup", SignupRequest(spare.code, "dave", "quiet-river-song")).status)
+        assertEquals(1, client.getJson<List<InviteDto>>("/invites", alice).size)
+
         // Carol logs in and asks Alice to be friends; Alice accepts.
         val carol = client.login("carol")
         assertEquals("requested", client.postJson("/friends/requests", AddFriendRequest("alice"), carol.sessionToken).body<AddFriendResponse>().status)

@@ -53,6 +53,8 @@ data class MixDto(
     val updatedAt: Long = 0,
     /** A station: the app asks for more songs as it plays, so it never ends. */
     val endless: Boolean = false,
+    /** Picked for this person's taste (the app shows "Made for <name>"); false for ones everyone gets alike. */
+    val personal: Boolean = false,
     val songs: List<MixSong> = emptyList(),
 ) {
     fun summary() = copy(songs = emptyList(), songCount = songs.size.takeIf { it > 0 } ?: songCount)
@@ -156,17 +158,28 @@ class MixMaker(
         }
         val moods = MOODS.mapNotNull { mood(it) }.sortedByDescending { moodFit(it.id) }
         return listOf(
-            MixSection("made-for-you", "Made for you", madeForYou),
-            MixSection("moods", "Moods and vibes", moods),
-            MixSection("composers", if (hasTaste) "Your composers" else "Composers", topPeople(composer = true).mapNotNull { personMix(it, composer = true) }),
-            MixSection("singers", if (hasTaste) "Singers you love" else "Singers", topPeople(composer = false).mapNotNull { personMix(it, composer = false) }),
-            MixSection("decades", "Through the decades", decades()),
+            MixSection("made-for-you", "Made for you", madeForYou.map(::personalized)),
+            MixSection("moods", "Moods and vibes", moods.map(::personalized)),
+            MixSection("composers", if (hasTaste) "Your composers" else "Composers", topPeople(composer = true).mapNotNull { personMix(it, composer = true) }.map(::personalized)),
+            MixSection("singers", if (hasTaste) "Singers you love" else "Singers", topPeople(composer = false).mapNotNull { personMix(it, composer = false) }.map(::personalized)),
+            MixSection("decades", "Through the decades", decades().map(::personalized)),
             MixSection("stations", "Stations for you", stations()),
         ).filter { it.mixes.isNotEmpty() }
     }
 
     /** Any mix by id, including ones not on Home (like a composer's mix opened from their page). */
-    fun byId(id: String): MixDto? {
+    fun byId(id: String): MixDto? = findById(id)?.let(::personalized)
+
+    /**
+     * Marks mixes picked for this person. Daily Mixes, Discover Weekly and the like always are; mood,
+     * decade, composer and singer mixes are once there's listening to lean on. Top 50 and stations aren't.
+     */
+    private fun personalized(mix: MixDto): MixDto = mix.copy(
+        personal = mix.kind in setOf("daily", "discover", "repeat", "rewind", "new", "friends") ||
+            (hasTaste && mix.kind in setOf("mood", "decade", "composer", "singer")),
+    )
+
+    private fun findById(id: String): MixDto? {
         val parts = id.split("-", limit = 2)
         return when (parts[0]) {
             "daily" -> dailyMixes().firstOrNull { it.id == id }

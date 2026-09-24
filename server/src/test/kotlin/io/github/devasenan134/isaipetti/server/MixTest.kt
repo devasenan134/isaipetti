@@ -84,6 +84,7 @@ class MixMakerTest {
         val melody = songs.count { style(it.id) == 0 }
         assertTrue(melody > songs.size * 0.8, "mostly melody: $melody of ${songs.size}")
         assertTrue(daily.all { it.author == "Isai Pettai" })
+        assertTrue(maker(lib).home().first { it.id == "made-for-you" }.mixes.filter { it.kind == "daily" }.all { it.personal })
         // Never two songs from the same movie back to back.
         assertTrue(songs.zipWithNext().none { (a, b) -> a.albumId == b.albumId })
         // No more than 2 songs from one movie among the new picks... and each song once.
@@ -185,6 +186,8 @@ class MixMakerTest {
         assertTrue(ids.any { it.startsWith("mood-") })
         assertTrue(ids.any { it.startsWith("composer-") })
         assertTrue(ids.none { it.startsWith("daily-") })
+        // Without listening, nothing is "made for" them yet.
+        assertTrue(home.flatMap { it.mixes }.none { it.personal })
     }
 
     @Test
