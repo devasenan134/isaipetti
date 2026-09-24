@@ -181,10 +181,7 @@ Features agreed for an upcoming version.
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| Emoji reactions on messages | Chat | P1 | 0.9.0 | Planned | Long-press → a row of emoji; counts under the bubble |
-| Edit and delete your own messages (for everyone) | Chat | P1 | 0.9.0 | Planned | "edited" label; deleted shows "This message was deleted" |
-| "Typing…" under the chat's name | Chat | P2 | 0.9.0 | Planned | Over the WebSocket, not saved |
-| Seen by (read receipts) | Chat | P2 | 0.9.0 | Planned | From each member's last read message |
+| _none yet_ | | | | | |
 
 ---
 
@@ -194,6 +191,11 @@ Features not yet agreed. Add freely.
 
 | Idea | Area | Notes |
 |---|---|---|
+| Voice messages | Chat | Record with a held button; needs audio upload like photos |
+| Forward a message to another chat | Chat | |
+| @mentions in groups, with their own notification | Chat | |
+| Search inside a chat | Chat | |
+| Mute a chat's notifications | Chat | |
 | Option to have a liked songs section | | |
 | Option to like an entire albums or playlist | | want to have the liked songs section and albums, playlist listed on a new separate page like Your library |
 | Lets move the movies and Composers page on the app to search section like in spotify | | |

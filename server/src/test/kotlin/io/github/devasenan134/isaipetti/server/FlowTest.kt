@@ -651,6 +651,82 @@ class FlowTest {
     }
 
     @Test
+    fun `reactions, editing, deleting, typing and seen`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val (alice, bob, carol) = listOf("alice", "bob", "carol").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id, carol.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        val messages = "/conversations/${group.id}/messages"
+        val hello = client.postJson(messages, SendMessageRequest("helo all"), alice.sessionToken).body<MessageDto>()
+        val reply = client.postJson(messages, SendMessageRequest("hi!", replyTo = hello.id), bob.sessionToken).body<MessageDto>()
+        suspend fun react(emoji: String?, session: SessionResponse, id: Long = hello.id) = "$messages/$id/reaction".let { path ->
+            if (emoji == null) client.delete(path) { bearerAuth(session.sessionToken) }
+            else client.put(path) { bearerAuth(session.sessionToken); contentType(ContentType.Application.Json); setBody(ReactRequest(emoji)) }
+        }
+        suspend fun latest(session: SessionResponse) = client.getJson<List<MessageDto>>(messages, session)
+
+        // Reactions: one per person (a new one replaces the old), grouped by emoji; letters aren't emoji.
+        react("👍", bob); react("👍", carol); react("😂", alice)
+        assertEquals(HttpStatusCode.BadRequest, react("lol", bob).status)
+        assertEquals(
+            listOf(ReactionDto("👍", listOf(bob.user.id, carol.user.id)), ReactionDto("😂", listOf(alice.user.id))),
+            latest(bob).first().reactions,
+        )
+        react("❤️", carol)
+        react(null, alice)
+        assertEquals(listOf("👍" to 1, "❤️" to 1), latest(alice).first().reactions.map { it.emoji to it.userIds.size })
+
+        // Editing: only your own messages, and it says it was edited. Everyone else hears about it.
+        val bobWs = client.webSocketSession("/ws?token=${bob.sessionToken}")
+        suspend fun editHello(text: String, session: SessionResponse) = client.patch("$messages/${hello.id}") {
+            bearerAuth(session.sessionToken); contentType(ContentType.Application.Json); setBody(EditMessageRequest(text))
+        }
+        assertEquals(HttpStatusCode.Forbidden, editHello("hacked", bob).status)
+        assertEquals(HttpStatusCode.BadRequest, editHello("  ", alice).status)
+        val edited = editHello("hello all", alice).body<MessageDto>()
+        assertTrue(edited.body == "hello all" && edited.editedAt != null && edited.reactions.size == 2)
+        var event: Event
+        do event = bobWs.nextEvent() while (event !is MessageUpdatedEvent)
+        assertEquals("hello all", event.message.body)
+        // The reply's quote shows the new text.
+        assertEquals("hello all", latest(carol).first { it.id == reply.id }.replyTo?.body)
+
+        // Deleting: only your own; it stays as a deleted message, and its quote says so.
+        client.postJson("/conversations/${group.id}/pins", PinRequest(hello.id, 24), bob.sessionToken)
+        assertEquals(HttpStatusCode.Forbidden, client.delete("$messages/${hello.id}") { bearerAuth(bob.sessionToken) }.status)
+        val deleted = client.delete("$messages/${hello.id}") { bearerAuth(alice.sessionToken) }.body<MessageDto>()
+        assertEquals(Triple(true, "", emptyList<ReactionDto>()), Triple(deleted.deleted, deleted.body, deleted.reactions))
+        assertEquals(true, latest(carol).first { it.id == reply.id }.replyTo?.deleted)
+        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", carol).single().pins)
+        // Nothing more can happen to it.
+        assertEquals(HttpStatusCode.BadRequest, editHello("back", alice).status)
+        assertEquals(HttpStatusCode.BadRequest, react("👍", bob).status)
+
+        // Typing: the others who are online hear it.
+        client.webSocketSession("/ws?token=${carol.sessionToken}").send(
+            Frame.Text(eventJson.encodeToString(ClientEvent.serializer(), TypingUpdate(group.id))),
+        )
+        do event = bobWs.nextEvent() while (event !is TypingEvent)
+        assertEquals(group.id to carol.user.id, event.conversationId to event.userId)
+
+        // Seen: Carol reads up to Bob's reply; Bob hears it, and the chat knows how far everyone read.
+        client.postJson("/conversations/${group.id}/read", MarkReadRequest(reply.id), carol.sessionToken)
+        do event = bobWs.nextEvent() while (event !is ReadEvent)
+        assertEquals(carol.user.id to reply.id, event.userId to event.messageId)
+        val marks = client.getJson<List<ConversationDto>>("/conversations", bob).single().readMarks
+        assertEquals(reply.id, marks.single { it.userId == carol.user.id }.lastReadId)
+        assertTrue(marks.none { it.userId == bob.user.id })
+    }
+
+    @Test
     fun `liked playlists are saved per person`() = testApplication {
         application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
         val client = createClient { install(ContentNegotiation) { json(eventJson) } }

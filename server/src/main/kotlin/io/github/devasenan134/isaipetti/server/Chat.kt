@@ -73,7 +73,7 @@ class Chat(
         query(
             "$MESSAGE_SELECT WHERE m.conversation_id = ? AND m.id < ? AND m.id > ? ORDER BY m.id DESC LIMIT ?",
             conversationId, before ?: Long.MAX_VALUE, cleared, limit.coerceIn(1, 100),
-        ) { it.toMessage().seenAfter(cleared) }.reversed()
+        ) { it.toMessage().seenAfter(cleared) }.reversed().let { withReactions(it) }
     }
 
     /** A listener asks the session's owner for a song. It shows in the chat with Accept/Decline for the owner. */
@@ -99,7 +99,7 @@ class Chat(
                 if (accept) "accepted" else "declined", messageId, conversationId,
             )
             if (changed == 0) throw ApiError(HttpStatusCode.Conflict, "That request was already answered")
-            queryOne("$MESSAGE_SELECT WHERE m.id = ?", messageId) { it.toMessage() }!! to memberIds(conversationId)
+            loadMessage(messageId)!! to memberIds(conversationId)
         }
         hub.send(members, MessageUpdatedEvent(message))
         return message
@@ -111,7 +111,7 @@ class Chat(
             val ids = query("SELECT id FROM messages WHERE conversation_id = ? AND request = 'pending'", conversationId) { it.getLong(1) }
             if (ids.isEmpty()) return@tx emptyList<MessageDto>() to emptyList()
             update("UPDATE messages SET request = 'expired' WHERE conversation_id = ? AND request = 'pending'", conversationId)
-            ids.mapNotNull { id -> queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() } } to memberIds(conversationId)
+            ids.mapNotNull { loadMessage(it) } to memberIds(conversationId)
         }
         expired.forEach { hub.send(members, MessageUpdatedEvent(it)) }
     }
@@ -161,9 +161,7 @@ class Chat(
             // Your own message counts as read.
             update("UPDATE conversation_members SET last_read_id = ? WHERE conversation_id = ? AND user_id = ?", id, conversationId, me.id)
             val message = queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!
-            val cleared = query("SELECT user_id, cleared_id FROM conversation_members WHERE conversation_id = ?", conversationId) {
-                it.getLong(1) to it.getLong(2)
-            }.toMap()
+            val cleared = clearedIds(conversationId)
             Triple(message, cleared, conversation(conversationId, me.id))
         }
         // Everyone gets it, but a reply to a message from before someone joined doesn't show them what it said.
@@ -172,12 +170,107 @@ class Chat(
         return message
     }
 
-    suspend fun markRead(userId: Long, conversationId: Long, messageId: Long) = db.tx {
-        requireMember(conversationId, userId)
-        update(
-            "UPDATE conversation_members SET last_read_id = max(last_read_id, ?) WHERE conversation_id = ? AND user_id = ?",
-            messageId, conversationId, userId,
-        )
+    suspend fun markRead(userId: Long, conversationId: Long, messageId: Long) {
+        val (members, lastRead) = db.tx {
+            requireMember(conversationId, userId)
+            update(
+                "UPDATE conversation_members SET last_read_id = max(last_read_id, ?) WHERE conversation_id = ? AND user_id = ?",
+                messageId, conversationId, userId,
+            )
+            memberIds(conversationId) to queryOne(
+                "SELECT last_read_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?", conversationId, userId,
+            ) { it.getLong(1) }!!
+        }
+        // The others' apps can say "Seen".
+        hub.send(members.filter { it != userId }, ReadEvent(conversationId, userId, lastRead))
+    }
+
+    /** Tells the others in a chat that [userId] is typing (only those online get it; nothing is saved). */
+    suspend fun typing(userId: Long, conversationId: Long) {
+        val members = db.tx {
+            requireMember(conversationId, userId)
+            memberIds(conversationId)
+        }
+        hub.send(members.filter { it != userId && hub.isOnline(it) }, TypingEvent(conversationId, userId))
+    }
+
+    /** Changes the text (or caption) of your own message. Not song requests or lines like "… left the group". */
+    suspend fun edit(me: UserDto, conversationId: Long, messageId: Long, newBody: String): MessageDto {
+        val body = newBody.trim()
+        if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
+        return changed(me, conversationId, messageId) {
+            val hasMore = ownMessage(me, conversationId, messageId, "edit")
+            if (body.isEmpty() && !hasMore) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
+            update("UPDATE messages SET body = ?, edited_at = ? WHERE id = ?", body, now(), messageId)
+        }
+    }
+
+    /**
+     * Deletes your own message for everyone. What it said (text, song, picture) is gone; it stays as
+     * "This message was deleted", so replies to it still make sense. Its pins and reactions go too.
+     */
+    suspend fun deleteMessage(me: UserDto, conversationId: Long, messageId: Long): MessageDto {
+        val message = changed(me, conversationId, messageId) {
+            ownMessage(me, conversationId, messageId, "delete")
+            update(
+                """UPDATE messages SET body = '', song_json = NULL, image_kind = NULL, image_width = NULL, image_height = NULL,
+                   request = NULL, request_mode = NULL, reply_to = NULL, deleted_at = ? WHERE id = ?""",
+                now(), messageId,
+            )
+            update("DELETE FROM pins WHERE message_id = ?", messageId)
+            update("DELETE FROM reactions WHERE message_id = ?", messageId)
+            imagesOf(conversationId).remove(messageId)
+        }
+        // Pins and chat lists changed as well.
+        hub.send(db.tx { memberIds(conversationId) }, ConversationUpdatedEvent(conversationId))
+        return message
+    }
+
+    /** Reacts to a message with [emoji], replacing your earlier reaction; null takes yours away. */
+    suspend fun react(me: UserDto, conversationId: Long, messageId: Long, emoji: String?): MessageDto {
+        val clean = emoji?.trim()
+        if (clean != null && (clean.isEmpty() || clean.length > 16 || clean.any { it.isLetterOrDigit() || it.isWhitespace() })) {
+            throw ApiError(HttpStatusCode.BadRequest, "React with an emoji")
+        }
+        return changed(me, conversationId, messageId) {
+            requireMember(conversationId, me.id)
+            val ok = queryOne(
+                "SELECT 1 FROM messages WHERE id = ? AND conversation_id = ? AND system = 0 AND deleted_at IS NULL AND id > ?",
+                messageId, conversationId, clearedId(conversationId, me.id),
+            ) { true }
+            if (ok == null) throw ApiError(HttpStatusCode.BadRequest, "You can't react to that message")
+            if (clean == null) update("DELETE FROM reactions WHERE message_id = ? AND user_id = ?", messageId, me.id)
+            else update(
+                "INSERT OR REPLACE INTO reactions (message_id, user_id, emoji, reacted_at) VALUES (?, ?, ?, ?)",
+                messageId, me.id, clean, now(),
+            )
+        }
+    }
+
+    /**
+     * Runs [change] on a message of the chat, then sends everyone the message as it is now (each as
+     * they're allowed to see it).
+     */
+    private suspend fun changed(me: UserDto, conversationId: Long, messageId: Long, change: Connection.() -> Unit): MessageDto {
+        val (message, cleared) = db.tx {
+            change()
+            loadMessage(messageId)!! to clearedIds(conversationId)
+        }
+        cleared.entries.groupBy({ message.seenAfter(it.value) }, { it.key }).forEach { (copy, ids) -> hub.send(ids, MessageUpdatedEvent(copy)) }
+        return message.seenAfter(cleared[me.id] ?: 0)
+    }
+
+    /** Your own, ordinary message: returns whether it has a song or picture besides its text. */
+    private fun Connection.ownMessage(me: UserDto, conversationId: Long, messageId: Long, verb: String): Boolean {
+        requireMember(conversationId, me.id)
+        val row = queryOne(
+            "SELECT sender_id, system, request, deleted_at, song_json IS NOT NULL OR image_kind IS NOT NULL FROM messages WHERE id = ? AND conversation_id = ?",
+            messageId, conversationId,
+        ) { Triple(it.getLong(1), it.getInt(2) == 1 || it.getString(3) != null || it.getObject(4) != null, it.getInt(5) == 1) }
+            ?: throw ApiError(HttpStatusCode.NotFound, "Message not found")
+        if (row.first != me.id) throw ApiError(HttpStatusCode.Forbidden, "You can only $verb your own messages")
+        if (row.second) throw ApiError(HttpStatusCode.BadRequest, "You can't $verb that message")
+        return row.third
     }
 
     /**
@@ -371,9 +464,7 @@ class Chat(
                 conversationId, me.id, at, messageId,
             )
             val line = queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!
-            val cleared = query("SELECT user_id, cleared_id FROM conversation_members WHERE conversation_id = ?", conversationId) {
-                it.getLong(1) to it.getLong(2)
-            }.toMap()
+            val cleared = clearedIds(conversationId)
             Triple(line, cleared, conversation(conversationId, me.id))
         }
         members.entries.groupBy({ message.seenAfter(it.value) }, { it.key }).forEach { (copy, ids) -> hub.send(ids, MessageEvent(copy)) }
@@ -451,6 +542,32 @@ class Chat(
         if (!fits) throw ApiError(HttpStatusCode.BadRequest, "Pick a part of the song at least a second long")
     }
 
+    /** One message, with its reactions. */
+    private fun Connection.loadMessage(id: Long): MessageDto? =
+        queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }?.let { withReactions(listOf(it)).single() }
+
+    /** Adds the reactions to [messages] (one query for all of them). */
+    private fun Connection.withReactions(messages: List<MessageDto>): List<MessageDto> {
+        if (messages.isEmpty()) return messages
+        val ids = messages.map { it.id }
+        val rows = query(
+            "SELECT message_id, emoji, user_id FROM reactions WHERE message_id IN (${ids.joinToString { "?" }}) ORDER BY reacted_at",
+            *ids.toTypedArray(),
+        ) { Triple(it.getLong(1), it.getString(2), it.getLong(3)) }
+        if (rows.isEmpty()) return messages
+        val byMessage = rows.groupBy { it.first }
+        return messages.map { m ->
+            val mine = byMessage[m.id] ?: return@map m
+            m.copy(reactions = mine.groupBy({ it.second }, { it.third }).map { (emoji, users) -> ReactionDto(emoji, users) })
+        }
+    }
+
+    /** Each member's cleared_id (where their history starts). */
+    private fun Connection.clearedIds(conversationId: Long): Map<Long, Long> =
+        query("SELECT user_id, cleared_id FROM conversation_members WHERE conversation_id = ?", conversationId) {
+            it.getLong(1) to it.getLong(2)
+        }.toMap()
+
     private fun Connection.clearedId(conversationId: Long, userId: Long) =
         queryOne("SELECT cleared_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?", conversationId, userId) { it.getLong(1) } ?: 0
 
@@ -500,6 +617,9 @@ class Chat(
         }
         return ConversationDto(
             id, kind, name, members, last, unread, canMessage, listenersOf(id), listenOwnerOf(id), createdBy = owner, picture = picture, pins = pins,
+            readMarks = query(
+                "SELECT user_id, last_read_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?", id, viewerId,
+            ) { ReadMarkDto(it.getLong(1), it.getLong(2)) },
         )
     }
 
@@ -531,9 +651,12 @@ class Chat(
                 body = getString("reply_body"),
                 song = getString("reply_song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
                 imageKind = getString("reply_image_kind"),
+                deleted = getObject("reply_deleted_at") != null,
             )
         },
         image = getString("image_kind")?.let { ImageDto(it, getInt("image_width"), getInt("image_height")) },
+        editedAt = getObject("edited_at")?.let { (it as Number).toLong() },
+        deleted = getObject("deleted_at") != null,
     )
 
     /** How [this] looks to someone whose history starts after message [clearedId]. */
@@ -547,7 +670,7 @@ class Chat(
         const val MAX_PINS = 3
         val PIN_HOURS = setOf(24, 24 * 7, 24 * 30)
         const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at,
-                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json, r.image_kind AS reply_image_kind,
+                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json, r.image_kind AS reply_image_kind, r.deleted_at AS reply_deleted_at,
                 ru.id AS reply_sender_id, ru.username AS reply_sender_username, ru.display_name AS reply_sender_display_name, ru.avatar_at AS reply_sender_avatar_at
             FROM messages m JOIN users u ON u.id = m.sender_id
             LEFT JOIN messages r ON r.id = m.reply_to LEFT JOIN users ru ON ru.id = r.sender_id"""

@@ -77,7 +77,20 @@ data class MessageDto(
     val replyTo: ReplyDto? = null,
     /** A photo, GIF or sticker (GET /conversations/{id}/messages/{messageId}/image); [body] is its caption. */
     val image: ImageDto? = null,
+    /** Emoji reactions, each with who reacted with it (one reaction per person). */
+    val reactions: List<ReactionDto> = emptyList(),
+    /** When its sender last changed its text, or null if never. */
+    val editedAt: Long? = null,
+    /** Its sender deleted it for everyone: only "This message was deleted" is left. */
+    val deleted: Boolean = false,
 )
+
+@Serializable data class ReactionDto(val emoji: String, val userIds: List<Long>)
+@Serializable data class ReactRequest(val emoji: String)
+@Serializable data class EditMessageRequest(val body: String)
+
+/** How far one member of a chat has read (for "Seen"). */
+@Serializable data class ReadMarkDto(val userId: Long, val lastReadId: Long)
 
 /** A picture in a message: [kind] is "photo", "gif" or "sticker"; its size in pixels lets the app make room before it loads. */
 @Serializable
@@ -102,6 +115,8 @@ data class ReplyDto(
     val hidden: Boolean = false,
     /** Set when it's a picture: "photo", "gif" or "sticker". */
     val imageKind: String? = null,
+    /** The quoted message was deleted since. */
+    val deleted: Boolean = false,
 )
 
 @Serializable
@@ -124,6 +139,8 @@ data class ConversationDto(
     val picture: Long? = null,
     /** Pinned messages that haven't expired, newest first. */
     val pins: List<PinDto> = emptyList(),
+    /** How far the other members have read, for "Seen". */
+    val readMarks: List<ReadMarkDto> = emptyList(),
 )
 
 @Serializable data class NewDmRequest(val userId: Long)
