@@ -76,8 +76,11 @@ class LanguagesTest {
         assertEquals(mapOf("Tamil" to 3.0), Languages.ownEvidence(song("Kanave Kanave", "Tamil")))
         assertEquals(mapOf("Hindi" to 3.0), Languages.ownEvidence(song("तुम ही हो")))
         assertEquals(mapOf("Tamil" to 3.0), Languages.ownEvidence(song("கண்ணே கலைமானே")))
-        assertEquals(mapOf("English" to 1.5), Languages.ownEvidence(song("Shape of You")))
+        // An English title is only a hint (Tamil films have songs called "Run for Your Life" too).
+        assertEquals(mapOf("English" to 0.6), Languages.ownEvidence(song("Shape of You")))
         assertEquals(mapOf("English" to 1.0), Languages.ownEvidence(song("Mersalaayitten", "Hip-Hop/Rap")))
+        assertEquals(mapOf("Telugu" to 2.5), Languages.ownEvidence(song("Jeeva Nadhi (Telugu)", album = "Baahubali")))
+        assertEquals(mapOf("Tamil" to 2.5), Languages.ownEvidence(song("Kodana Kodi", album = "Saroja - Tamil")))
         // Transliterated Tamil has no English words.
         assertEquals(emptyMap(), Languages.ownEvidence(song("Vaathi Coming")))
     }

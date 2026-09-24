@@ -16,12 +16,18 @@ fun main(args: Array<String>) = runBlocking {
 
     // Languages: how many of each, how many were tagged, and a few examples of each to check by eye.
     val languages = lib.language
-    val tagged = lib.songs.count { Languages.ownEvidence(it).isNotEmpty() }
-    println("\nLanguages ($tagged songs had their own clue):")
-    languages.groupBy { it ?: "unknown" }.entries.sortedByDescending { it.value.size }.forEach { (language, list) ->
-        val examples = lib.songs.indices.filter { (languages[it] ?: "unknown") == language }.shuffled(kotlin.random.Random(1)).take(6)
-            .joinToString(" | ") { "${lib.songs[it].title} (${lib.songs[it].album})" }
-        println("  $language: ${list.size}  e.g. $examples")
+    val steps = IntArray(lib.songs.size)
+    Languages.infer(lib.songs, lib.sound, lib.moods["indianfilm"], lib.moods["western"], steps)
+    val stepNames = listOf("unknown", "own clue", "movie/people", "Indian or Western sound", "nearest songs")
+    println("\nLanguages, and which step decided them:")
+    languages.indices.groupBy { languages[it] ?: "unknown" }.entries.sortedByDescending { it.value.size }.forEach { (language, list) ->
+        println("  $language: ${list.size}")
+        list.groupBy { steps[it] }.toSortedMap().forEach { (step, songsHere) ->
+            // Small languages in full, so each song can be checked; big ones by a few examples.
+            val shown = if (list.size <= 40) songsHere else songsHere.shuffled(kotlin.random.Random(1)).take(5)
+            val examples = shown.joinToString(" | ") { "${lib.songs[it].title} (${lib.songs[it].album})" }
+            println("      ${stepNames[step]}: ${songsHere.size}  e.g. $examples")
+        }
     }
 
     val playlists = source.playlists(lib)

@@ -430,6 +430,11 @@ class MixMaker(
         val language: String? = null,
         /** A music culture, in your main language (film melodies, Carnatic). Otherwise it's a feeling, in the languages you listen to. */
         val oneLanguage: Boolean = false,
+        /**
+         * Only songs that sound like Indian film music rather than Western pop (Kuthu, Kollywood Mass):
+         * a Western-style song from a Tamil film doesn't belong with thappu drums.
+         */
+        val indianSound: Boolean = false,
     )
 
     fun mood(mood: Mood): MixDto? {
@@ -456,6 +461,11 @@ class MixMaker(
         if (!eligible(i) || lib.sound[i] == null) return Float.NaN
         if (mood.requires.any { (key, min) -> (lib.moods[key]?.get(i) ?: Float.NaN).let { it.isNaN() || it < min } }) return Float.NaN
         if (mood.vetoes.any { (key, max) -> (lib.moods[key]?.get(i) ?: 0f) > max }) return Float.NaN
+        if (mood.indianSound) {
+            val indian = lib.moods["indianfilm"]?.get(i) ?: Float.NaN
+            val western = lib.moods["western"]?.get(i) ?: Float.NaN
+            if (!indian.isNaN() && !western.isNaN() && indian - western < 0f) return Float.NaN
+        }
         val energy = energyZ[i]
         if (mood.maxEnergy != null && (energy.isNaN() || energy > mood.maxEnergy)) return Float.NaN
         if (mood.maxRhythm != null && (rhythmZ[i].isNaN() || rhythmZ[i] > mood.maxRhythm)) return Float.NaN
@@ -798,10 +808,13 @@ class MixMaker(
             Mood("romance", "Romance Mix", "Love songs and duets", mapOf("romantic" to 1f, "melody" to 0.4f), color = "#B03A5B"),
             Mood("happy", "Feel Good Mix", "Bright, happy songs", mapOf("happy" to 1f), energy = 0.3f, color = "#E0A21B"),
             Mood("party", "Party Mix", "Loud, fast, made for dancing", mapOf("party" to 1f, "kuthu" to 0.5f), energy = 1f, color = "#D2462D"),
-            Mood("kuthu", "Kuthu Mix", "Folk beats and thappu drums", mapOf("kuthu" to 1f), energy = 0.5f, color = "#C0561B", language = "Tamil"),
+            Mood(
+                "kuthu", "Kuthu Mix", "Folk beats and thappu drums", mapOf("kuthu" to 1f), energy = 0.5f, color = "#C0561B", language = "Tamil",
+                vetoes = mapOf("melody" to 1.0f, "sad" to 1.0f), indianSound = true,
+            ),
             Mood(
                 "mass", "Kollywood Mass", "Hero intros and mass beats", mapOf("heroic" to 1f, "kuthu" to 0.5f, "party" to 0.3f), energy = 1f,
-                color = "#A3271F", language = "Tamil",
+                color = "#A3271F", language = "Tamil", vetoes = mapOf("melody" to 1.2f, "sad" to 1.0f), indianSound = true,
             ),
             Mood("sad", "Sad Songs", "For the heavy-hearted", mapOf("sad" to 1f), energy = -0.3f, color = "#4A5A7A"),
             Mood("melody", "Melody Mix", "Soft film melodies", mapOf("melody" to 1f), color = "#5B7F4A", oneLanguage = true),
