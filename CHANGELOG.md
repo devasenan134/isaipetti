@@ -7,6 +7,13 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.16 (2026-09-24): Group menu on the right
+
+### Improved
+- **In a group chat, the ⋮ menu is the rightmost button**, with the queue and jam buttons to its left.
+
+---
+
 ## 0.6.15 (2026-09-24): Jam buttons stay put
 
 ### Fixed
