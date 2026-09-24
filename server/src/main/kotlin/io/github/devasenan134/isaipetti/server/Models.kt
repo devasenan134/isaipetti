@@ -97,6 +97,7 @@ data class ConversationDto(
 
 @Serializable data class NewDmRequest(val userId: Long)
 @Serializable data class NewGroupRequest(val name: String, val memberIds: List<Long>)
+@Serializable data class AddMembersRequest(val userIds: List<Long>)
 @Serializable data class SendMessageRequest(val body: String = "", val song: SongRef? = null)
 @Serializable data class MarkReadRequest(val messageId: Long)
 @Serializable data class DeviceRequest(val token: String)
