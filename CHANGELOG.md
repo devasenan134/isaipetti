@@ -7,6 +7,18 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.18 (2026-09-24): Group members
+
+### New
+- **See who's in a group.** Tap a group chat's name (or the names under it) to see its members, sorted into **In the jam**, **Online** and **Offline**. The jam's host has the DJ deck next to their name, and the group's owner is marked.
+- **Add and remove people later.** The group's owner can add friends (**Add people**) or remove someone (✕ next to their name) from that list, or from ⋮ → **Members**. Someone who's added sees the chat from that moment on, not its earlier messages. Someone who's removed loses the chat. Everyone sees "… added …" or "… removed …" in the chat.
+- **Long-press a profile picture** (or a group photo) to see it large. Tap anywhere to close it.
+
+### Server
+- `POST /conversations/{id}/members` (`{"userIds": [...]}`) and `DELETE /conversations/{id}/members/{userId}`, for the group's owner only. `GET /conversations/{id}/online` lists which members have the app open.
+
+---
+
 ## 0.6.17 (2026-09-24): The player keeps up, and closing the app stops the music
 
 ### Fixed
