@@ -166,9 +166,9 @@ class MixMaker(
             MixSection("made-for-you", "Made for you", madeForYou.map(::personalized)),
             MixSection("your-stations", "Your stations", yourStations().map { it.copy(personal = true) }),
             MixSection("composers", "This is: composers", composers.mapNotNull { personMix(it, composer = true) }),
-            MixSection("singers", "This is: singers", singers.mapNotNull { personMix(it, composer = false) }),
+            MixSection("singers", "This is: artists", singers.mapNotNull { personMix(it, composer = false) }),
             MixSection("moods", "Moods and vibes", MOODS.mapNotNull { mood(it) }),
-            MixSection("artist-stations", "Composer and singer stations", artistStations()),
+            MixSection("artist-stations", "Composer and artist stations", artistStations()),
             MixSection("charts", "Popular and new", charts),
             MixSection("decades", "Through the decades", decades()),
         ).filter { it.mixes.isNotEmpty() }
