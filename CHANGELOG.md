@@ -7,6 +7,20 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.11 (2026-09-24): Ask for a song now or next, and edit the queue
+
+### New
+- **Edit the queue.** In the queue panel, drag a song by its handle to move it, or swipe it left to remove it. The song that's playing can't be swiped away. Moving songs needs shuffle off. In a jam you host, your changes reach everyone; in someone else's jam the queue is view-only.
+- **Ask for a song now or next.** In someone else's jam, swipe a song **right** to ask the host to play it right away (skipping the current song), or **left** to ask for it next. The request in the chat says which, and the host's button reads **Play now** or **Play next**.
+
+### Fixed
+- **No more request spam.** You can ask for a song once every 10 seconds, with at most 3 requests waiting for an answer at a time.
+
+### Server
+- `POST /conversations/{id}/listen/requests` takes `mode` (`"next"`, the default, or `"now"`); messages carry `requestMode`. Requests are refused with 429 when they come within 10 s of the last one (`songRequestCooldownMs`) or when 3 are already waiting. Database schema v11 (`messages.request_mode`).
+
+---
+
 ## 0.6.10 (2026-09-24): Search by actor and lyricist, and spelling that doesn't have to be right
 
 ### New
