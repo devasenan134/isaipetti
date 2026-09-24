@@ -75,6 +75,7 @@ fun Application.isaipettiSocial(
     chat.onRemoved = listen::ended
     val push = Push(db, pushSender)
     friends.push = push
+    val stats = Stats(config.navidromeDb, db, hiddenUser = config.navidromeAdminUser, defaultZone = config.timeZone)
     chat.onUnseen = push::newMessage
     listen.onStarted = { userId, conversationId ->
         val recipients = chat.members(conversationId).filter { it != userId && !hub.isVisible(it) }
@@ -243,6 +244,12 @@ fun Application.isaipettiSocial(
             post("/plays") {
                 mixes?.recordPlays(call.me(), call.receive<PlaysRequest>().events)
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            // Listening stats, only for people who are admins in Navidrome.
+            route("/admin") {
+                get("/access") { call.respond(AdminAccessDto(stats.isAdmin(call.me()))) }
+                get("/stats") { call.respond(stats.report(call.me(), call.request.queryParameters["tz"])) }
             }
 
             post("/bug-reports") { call.respond(bugReports.report(call.me(), call.receive())) }
