@@ -7,6 +7,16 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.13 (2026-09-24): See who likes your playlists
+
+### New
+- **Likes on your playlists.** A playlist you made shows how many friends liked it under its name (**By you · 3 likes**, or **No likes yet**). In Your Library, your playlists that someone liked show the count too. Your own like isn't counted.
+
+### Server
+- `GET /likes/playlists/counts?ids=a,b` returns how many people (besides you) liked each playlist, up to 500 at a time. With an older server the app just doesn't show likes.
+
+---
+
 ## 0.6.12 (2026-09-24): Jam controls in the chat
 
 ### New
