@@ -7,6 +7,15 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.6 (2026-09-24): A live pointer when sharing a part
+
+### Improved
+- **The pointer follows the song.** When you share a part of the song that's playing, the pointer on the waveform moves along with it. Drag the pointer and the song jumps there.
+- **Preview plays just your part.** Preview moves the pointer to the start of your part and plays from there. At the end of the part the song pauses and the pointer stays there.
+- **A play/pause button** at the end of the row (after Preview, Start here and End here) carries on playing from the pointer, past the end of your part too. It shows pause while the song plays.
+
+---
+
 ## 0.6.5 (2026-09-24): Lyrics under the cover, a song waveform for clips
 
 ### New
