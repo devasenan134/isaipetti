@@ -257,7 +257,7 @@ class FlowTest {
     fun `listen together`() = testApplication {
         val push = FakePush()
         // A short wait for an owner who drops offline, so the test doesn't take a minute.
-        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", "", listenOwnerGraceMs = 500), FakeNavidrome(), push) }
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", "", listenOwnerGraceMs = 500, songRequestCooldownMs = 700), FakeNavidrome(), push) }
         val client = createClient {
             install(ContentNegotiation) { json(eventJson) }
             install(WebSockets)
@@ -307,8 +307,11 @@ class FlowTest {
         // Bob asks for a song instead. It shows in the chat as a pending request.
         val wanted = SongRef("s3", "Munbe Vaa")
         val request = client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(wanted), bob.sessionToken).body<MessageDto>()
-        assertEquals(wanted to "pending", request.song to request.request)
+        assertEquals(Triple(wanted, "pending", "next"), Triple(request.song, request.request, request.requestMode))
         assertEquals(request.id, (aliceWs.next { it is MessageEvent } as MessageEvent).message.id)
+        // Asking again right away is refused, so a burst of swipes can't flood the chat.
+        val again = client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(wanted, mode = "now"), bob.sessionToken)
+        assertEquals(HttpStatusCode.TooManyRequests, again.status)
         // The owner doesn't request (she adds songs herself), and only she can answer.
         assertEquals(HttpStatusCode.BadRequest, client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(wanted), alice.sessionToken).status)
         val answer = "/conversations/${dm.id}/listen/requests/${request.id}"
@@ -329,8 +332,10 @@ class FlowTest {
         assertEquals(alice.user.id, client.getJson<List<ConversationDto>>("/conversations", bob).single().listenOwner)
 
         // Bob asks for another song, but Alice doesn't answer before leaving.
-        val unanswered = client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(SongRef("s4", "Vennilave")), bob.sessionToken)
+        // He wants this one right away.
+        val unanswered = client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(SongRef("s4", "Vennilave"), mode = "now"), bob.sessionToken)
             .body<MessageDto>()
+        assertEquals("now", unanswered.requestMode)
 
         // This time she stays away longer: the session ends for Bob too, and his request expires.
         aliceWs.close()

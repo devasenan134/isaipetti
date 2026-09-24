@@ -71,6 +71,8 @@ data class MessageDto(
     val system: Boolean = false,
     /** For a song request in a listening session: "pending", "accepted", "declined" or "expired" (the session ended first). */
     val request: String? = null,
+    /** What a song request asks for: "next" (after the current song) or "now" (skip to it). */
+    val requestMode: String? = null,
 )
 
 @Serializable

@@ -68,7 +68,7 @@ fun Application.isaipettiSocial(
     friends.hub = hub
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
     val chat = Chat(db, friends, hub, PictureFolder(config.dbPath, "group-pictures"))
-    val listen = ListenTogether(hub, chat::members, this, config.listenOwnerGraceMs)
+    val listen = ListenTogether(hub, chat::members, this, config.listenOwnerGraceMs, config.songRequestCooldownMs)
     chat.listenersOf = listen::listeners
     chat.listenOwnerOf = listen::owner
     listen.onEnded = chat::expireRequests
@@ -323,8 +323,9 @@ fun Application.isaipettiSocial(
                 // Song requests while listening together: a listener asks, the session's owner answers.
                 post("/{id}/listen/requests") {
                     val id = call.longParam("id")
+                    val body = call.receive<SongRequestBody>()
                     listen.requireRequester(call.me().id, id)
-                    call.respond(chat.requestSong(call.me(), id, call.receive<SongRequestBody>().song))
+                    call.respond(chat.requestSong(call.me(), id, body.song, body.mode))
                 }
                 post("/{id}/listen/requests/{messageId}") {
                     val id = call.longParam("id")

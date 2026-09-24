@@ -52,7 +52,8 @@ data class ListenStateEvent(val conversationId: Long, val state: ListenState, va
 @Serializable @SerialName("messageUpdated")
 data class MessageUpdatedEvent(val message: MessageDto) : Event
 
-@Serializable data class SongRequestBody(val song: SongRef)
+/** [mode]: "next" plays the song after the current one, "now" skips to it. */
+@Serializable data class SongRequestBody(val song: SongRef, val mode: String = "next")
 @Serializable data class SongRequestAnswer(val accept: Boolean)
 
 /**
@@ -68,6 +69,7 @@ class ListenTogether(
     private val membersOf: suspend (Long) -> List<Long>,
     private val scope: CoroutineScope,
     private val ownerGraceMs: Long = 60_000,
+    private val requestCooldownMs: Long = 10_000,
 ) {
     private class Session(var state: ListenState, val listeners: MutableSet<Long>, val owner: Long) {
         /** When the owner went offline (reconnecting within the grace period keeps the session). */
@@ -82,6 +84,9 @@ class ListenTogether(
     /** Called when someone starts a new session in a chat (for push notifications), at most every 30 minutes per chat. */
     var onStarted: suspend (userId: Long, conversationId: Long) -> Unit = { _, _ -> }
     private val lastStarted = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+
+    /** When each listener last asked for a song, so nobody floods the owner with requests. */
+    private val lastRequested = mutableMapOf<Long, Long>() // guarded by synchronized(sessions)
 
     fun listeners(conversationId: Long): List<Long> = synchronized(sessions) { sessions[conversationId]?.listeners?.toList().orEmpty() }
 
@@ -194,11 +199,18 @@ class ListenTogether(
         hub.send(others, ListenStateEvent(conversationId, state, by = userId, serverTime = now()))
     }
 
-    /** A listener may ask for a song; the owner can't (they just add it). */
+    /**
+     * A listener may ask for a song; the owner can't (they just add it). One request every
+     * [requestCooldownMs] per listener, so a burst of swipes can't flood the owner's chat.
+     */
     fun requireRequester(userId: Long, conversationId: Long) = synchronized(sessions) {
         val session = sessions[conversationId] ?: throw ApiError(HttpStatusCode.Conflict, "Nobody is listening together in this chat")
         if (userId !in session.listeners) throw ApiError(HttpStatusCode.Forbidden, "Join the listening session first")
         if (session.owner == userId) throw ApiError(HttpStatusCode.BadRequest, "It's your session: add the song to the queue")
+        val t = now()
+        val wait = (lastRequested[userId] ?: 0) + requestCooldownMs - t
+        if (wait > 0) throw ApiError(HttpStatusCode.TooManyRequests, "Wait ${(wait + 999) / 1000} s before asking again")
+        lastRequested[userId] = t
     }
 
     /** Only the session's owner answers song requests. */
