@@ -480,6 +480,12 @@ class FlowTest {
         assertEquals(listOf("pl1"), client.getJson<List<PlaylistRef>>("/likes/playlists", alice).map { it.id })
         assertEquals(HttpStatusCode.BadRequest, like(alice, PlaylistRef("")))
         assertEquals(HttpStatusCode.Unauthorized, client.get("/likes/playlists").status)
+
+        // Bob likes pl1 too. Counts leave out whoever asks (the app asks about your own playlists).
+        like(bob, PlaylistRef("pl1", "Road trip 2026"))
+        assertEquals(mapOf("pl1" to 1, "pl3" to 0), client.getJson<Map<String, Int>>("/likes/playlists/counts?ids=pl1,pl3", alice))
+        assertEquals(mapOf("pl1" to 1), client.getJson<Map<String, Int>>("/likes/playlists/counts?ids=pl1", bob))
+        assertEquals(emptyMap(), client.getJson<Map<String, Int>>("/likes/playlists/counts?ids=", alice))
     }
 
     @Test

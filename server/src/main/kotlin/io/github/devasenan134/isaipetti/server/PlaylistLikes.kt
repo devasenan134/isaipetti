@@ -38,11 +38,29 @@ class PlaylistLikes(private val db: Db) {
         }
     }
 
+    /**
+     * How many people liked each of these playlists, not counting [userId] (the app asks about
+     * your own playlists, and your own like isn't news to you). Playlists nobody liked are 0.
+     */
+    suspend fun counts(userId: Long, playlistIds: List<String>): Map<String, Int> {
+        val ids = playlistIds.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (ids.size > MAX_COUNTS) throw ApiError(HttpStatusCode.BadRequest, "Ask about up to $MAX_COUNTS playlists at a time")
+        if (ids.isEmpty()) return emptyMap()
+        val found = db.tx {
+            query(
+                "SELECT playlist_id, count(*) FROM liked_playlists WHERE user_id != ? AND playlist_id IN (${ids.joinToString { "?" }}) GROUP BY playlist_id",
+                userId, *ids.toTypedArray(),
+            ) { it.getString(1) to it.getInt(2) }.toMap()
+        }
+        return ids.associateWith { found[it] ?: 0 }
+    }
+
     suspend fun unlike(userId: Long, playlistId: String) = db.tx {
         update("DELETE FROM liked_playlists WHERE user_id = ? AND playlist_id = ?", userId, playlistId)
     }
 
     private companion object {
         const val MAX = 1_000
+        const val MAX_COUNTS = 500
     }
 }
