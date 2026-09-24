@@ -5,7 +5,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat, sign-up and mixes
 - **Analyzer:** optional audio analyzer in `analyzer/` (Python + CLAP) for moods and sound-alikes
-- **Current version:** 0.6.3 (app `versionCode` 19)
+- **Current version:** 0.6.4 (app `versionCode` 20)
 - **Last updated:** 2026-09-23
 
 ---
@@ -29,6 +29,11 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.6.4: Graphite & mango, appearance settings and new tile art
+- Graphite & mango theme; Auto/Light/Dark and wallpaper colours in Settings
+- Gradient art for Made for you, pastel art for This Is and stations
+- Home: Recently Played lists every song played; Jump back in; bigger Your Library rows
 
 ### 0.6.3: Indigo night, and a new Home
 - Indigo night colour theme with brighter text

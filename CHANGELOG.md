@@ -7,6 +7,19 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.4 (2026-09-24): Graphite & mango, appearance settings and new tile art
+
+### New
+- **A brighter colour theme: Graphite & mango.** A soft graphite grey, lighter than before, with a ripe mango accent, in dark and light. The grey is neutral, so album covers bring the colour.
+- **Appearance in Settings.** Choose **Auto** (follows your phone), **Light** or **Dark**. On Android 12 and later, **Use wallpaper colours** gives the app the colours of your wallpaper instead.
+- **New art for mixes.** Made for you tiles (Daily Mixes, Discover Weekly, On Repeat...) are colour gradients. **This Is** tiles and **stations** show the composer, singer or song on a soft pastel.
+
+### Improved
+- **Home:** the list of songs is now **Recently Played** and lists every song that played, whether you tapped it or it came next in a movie, playlist or mix. The tiles below it are now **Jump back in**.
+- **Your Library:** list rows are bigger (larger pictures and text).
+
+---
+
 ## 0.6.3 (2026-09-24): Indigo night, and a new Home
 
 ### New
