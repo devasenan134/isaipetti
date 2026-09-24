@@ -44,6 +44,10 @@ class MixService(
     private class Built(val key: String, val lib: LibrarySnapshot, val maker: MixMaker, val home: List<MixSection>, val checkedAt: Long)
     private val built = ConcurrentHashMap<Long, Built>()
 
+    /** Which songs people put together (see [Together]), shared by everyone and worked out again every few minutes. */
+    @Volatile private var together: Pair<String, Together>? = null
+    @Volatile private var togetherAt = 0L
+
     suspend fun home(user: UserDto): HomeMixes {
         val b = build(user)
         return HomeMixes(b.home.map { s -> s.copy(mixes = s.mixes.map { it.summary() }) }, b.lib.analyzed, b.lib.songs.size)
@@ -133,13 +137,34 @@ class MixService(
         val skips = skips(user.id, lib)
         val friends = friendsPlays(user.id, lib)
         val today = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(clock()), zone)
-        val key = listOf(lib.version, history.version, skips.hashCode(), friends.hashCode(), today).joinToString("|")
+        val (togetherVersion, together) = together(lib)
+        val key = listOf(lib.version, history.version, skips.hashCode(), friends.hashCode(), today, togetherVersion).joinToString("|")
         if (cached != null && cached.key == key) return Built(key, cached.lib, cached.maker, cached.home, clock()).also { built[user.id] = it }
 
         val popularity = source.popularity(lib)
-        val maker = MixMaker(lib, history, skips, popularity, friends, personSeed = user.id * 1_000_003L, today = today, now = clock())
+        val maker = MixMaker(lib, history, skips, popularity, friends, personSeed = user.id * 1_000_003L, today = today, now = clock(), together = together)
         val home = remember(user.id, maker.home())
         return Built(key, lib, maker, home, clock()).also { built[user.id] = it }
+    }
+
+    /**
+     * Which songs people put together: everyone's plays here in the last 180 days (not skipped, and not
+     * started by a mix, so mixes don't teach themselves) and everyone's playlists.
+     */
+    private suspend fun together(lib: LibrarySnapshot): Pair<String, Together> {
+        together?.let { if (clock() - togetherAt < TOGETHER_EVERY_MS && it.first.startsWith(lib.version)) return it }
+        val plays = db.tx {
+            query(
+                "SELECT user_id, song_id, at FROM plays WHERE skipped = 0 AND at > ? AND (source IS NULL OR source NOT LIKE 'mix:%')",
+                clock() - 180 * MixMaker.DAY,
+            ) { rs -> lib.index[rs.getString(2)]?.let { Together.Play(rs.getLong(1), it, rs.getLong(3)) } }.filterNotNull()
+        }
+        val playlists = runCatching { source.playlists(lib) }.getOrDefault(emptyList())
+        val version = "${lib.version}/${plays.size}/${playlists.sumOf { it.size }}"
+        val current = together?.takeIf { it.first == version } ?: (version to Together.build(plays, playlists))
+        together = current
+        togetherAt = clock()
+        return current
     }
 
     /** Sets each mix's [MixDto.updatedAt] to when its songs last changed (kept in the database). */
@@ -196,5 +221,7 @@ class MixService(
     private companion object {
         /** Checking whether anything changed takes a few small queries; don't do it more than this often. */
         const val RECHECK_MS = 30_000L
+        /** How often to look for new plays and playlist changes for [Together]. */
+        const val TOGETHER_EVERY_MS = 10 * 60_000L
     }
 }

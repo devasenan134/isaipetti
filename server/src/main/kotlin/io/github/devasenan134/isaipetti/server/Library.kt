@@ -64,6 +64,9 @@ class LibrarySnapshot(
     val rhythm: FloatArray = FloatArray(songs.size) { Float.NaN },
 ) {
     val index: Map<String, Int> = songs.withIndex().associate { (i, s) -> s.id to i }
+
+    /** Each song's language ("Tamil", "English"...), worked out from its tags, people and sound; null if unknown. */
+    val language: Array<String?> by lazy { Languages.infer(songs, sound, moods["indianfilm"], moods["western"]) }
     val analyzed = sound.count { it != null }
     val hasSound get() = analyzed >= songs.size / 4 && analyzed >= 20
 
@@ -103,6 +106,8 @@ interface MusicSource {
     /** Total plays per song across everyone, for "popular" picks. */
     suspend fun popularity(snapshot: LibrarySnapshot): Map<Int, Int>
     suspend fun navidromeUserId(username: String): String?
+    /** Everyone's playlists, as songs by position in [snapshot] (for which songs people put together). */
+    suspend fun playlists(snapshot: LibrarySnapshot): List<List<Int>> = emptyList()
 }
 
 /**
@@ -170,6 +175,14 @@ class NavidromeLibrary(private val navidromeDb: String, private val featuresDb: 
                 snapshot.index[rs.getString(1)]?.let { it to rs.getInt(2) }
             }.filterNotNull().filter { it.second > 0 }.toMap()
         } ?: emptyMap()
+    }
+
+    override suspend fun playlists(snapshot: LibrarySnapshot): List<List<Int>> = withContext(Dispatchers.IO) {
+        navidrome { c ->
+            c.query("SELECT playlist_id, media_file_id FROM playlist_tracks ORDER BY playlist_id, id") { rs ->
+                rs.getString(1) to snapshot.index[rs.getString(2)]
+            }.filter { it.second != null }.groupBy({ it.first }, { it.second!! }).values.toList()
+        } ?: emptyList()
     }
 
     override suspend fun navidromeUserId(username: String): String? = withContext(Dispatchers.IO) {
