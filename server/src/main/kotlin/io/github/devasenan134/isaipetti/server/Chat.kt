@@ -13,6 +13,7 @@ import java.sql.ResultSet
 class Chat(private val db: Db, private val friends: Friends, private val hub: Hub, private val groupPictures: PictureFolder) {
     /** Who is listening together in a chat (set once listen-together is running). */
     var listenersOf: (Long) -> List<Long> = { emptyList() }
+    var listenOwnerOf: (Long) -> Long? = { null }
 
     /** Called when someone leaves a group, and when a group is deleted (to end listen-together there). */
     var onLeft: suspend (userId: Long, conversationId: Long) -> Unit = { _, _ -> }
@@ -69,7 +70,36 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         ) { it.toMessage() }.reversed()
     }
 
-    suspend fun send(me: UserDto, conversationId: Long, request: SendMessageRequest): MessageDto {
+    /** A listener asks the session's owner for a song. It shows in the chat with Accept/Decline for the owner. */
+    suspend fun requestSong(me: UserDto, conversationId: Long, song: SongRef): MessageDto =
+        send(me, conversationId, SendMessageRequest(song = song), songRequest = true)
+
+    /** The owner accepts or declines a pending request; everyone in the chat sees the answer. */
+    suspend fun answerRequest(conversationId: Long, messageId: Long, accept: Boolean): MessageDto {
+        val (message, members) = db.tx {
+            val changed = update(
+                "UPDATE messages SET request = ? WHERE id = ? AND conversation_id = ? AND request = 'pending'",
+                if (accept) "accepted" else "declined", messageId, conversationId,
+            )
+            if (changed == 0) throw ApiError(HttpStatusCode.Conflict, "That request was already answered")
+            queryOne("$MESSAGE_SELECT WHERE m.id = ?", messageId) { it.toMessage() }!! to memberIds(conversationId)
+        }
+        hub.send(members, MessageUpdatedEvent(message))
+        return message
+    }
+
+    /** A listening session ended: its unanswered requests can't be played anymore. */
+    suspend fun expireRequests(conversationId: Long) {
+        val (expired, members) = db.tx {
+            val ids = query("SELECT id FROM messages WHERE conversation_id = ? AND request = 'pending'", conversationId) { it.getLong(1) }
+            if (ids.isEmpty()) return@tx emptyList<MessageDto>() to emptyList()
+            update("UPDATE messages SET request = 'expired' WHERE conversation_id = ? AND request = 'pending'", conversationId)
+            ids.mapNotNull { id -> queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() } } to memberIds(conversationId)
+        }
+        expired.forEach { hub.send(members, MessageUpdatedEvent(it)) }
+    }
+
+    suspend fun send(me: UserDto, conversationId: Long, request: SendMessageRequest, songRequest: Boolean = false): MessageDto {
         val body = request.body.trim()
         if (body.isEmpty() && request.song == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
@@ -87,8 +117,8 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             }
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
-                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at) VALUES (?, ?, ?, ?, ?)",
-                conversationId, me.id, body, songJson, now(),
+                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request) VALUES (?, ?, ?, ?, ?, ?)",
+                conversationId, me.id, body, songJson, now(), if (songRequest) "pending" else null,
             )
             // A new message brings the chat back for anyone who had deleted it.
             update("UPDATE conversation_members SET hidden = 0 WHERE conversation_id = ?", conversationId)
@@ -241,7 +271,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         } else {
             others.isNotEmpty()
         }
-        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id), createdBy = owner, picture = picture)
+        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id), listenOwnerOf(id), createdBy = owner, picture = picture)
     }
 
     /** Who is in a chat (for listen-together). */
@@ -263,6 +293,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         song = getString("song_json")?.let { json.decodeFromString(SongRef.serializer(), it) },
         createdAt = getLong("created_at"),
         system = getInt("system") == 1,
+        request = getString("request"),
     )
 
     private companion object {
