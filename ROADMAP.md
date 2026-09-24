@@ -5,7 +5,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat, sign-up and mixes
 - **Analyzer:** optional audio analyzer in `analyzer/` (Python + CLAP) for moods and sound-alikes
-- **Current version:** 0.6.5 (app `versionCode` 21)
+- **Current version:** 0.6.6 (app `versionCode` 22)
 - **Last updated:** 2026-09-23
 
 ---
@@ -29,6 +29,9 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.6.6: A live pointer when sharing a part
+- The pointer follows the playing song; Preview plays from the in point and stops at the out point; a play/pause button
 
 ### 0.6.5: Lyrics under the cover, a song waveform for clips
 - The line being sung under the cover; singers scroll when they don't fit
