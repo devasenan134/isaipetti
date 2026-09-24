@@ -7,6 +7,19 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.7 (2026-09-24): Listening stats for admins
+
+### New
+- **Listening stats (admins only).** Settings has a new **Listening stats** card, shown only to people who are admins in Navidrome. It shows how much everyone listens: hours and plays for **today, 7 days, 30 days or all time**, when each person last played something, and a bar to compare them.
+- **Tap a person** to see their top songs, movies and composers for that range.
+- **Two charts for everyone together:** hours per day over the last 30 days, and which hours of the day people listen. Tap a bar to read its exact value.
+- A song counts as played once half of it (or 4 minutes) is heard, and adds its full length, so the hours are a close estimate.
+
+### Server
+- `GET /admin/access` and `GET /admin/stats` read Navidrome's play history (read-only). Only Navidrome admins get an answer, and the server's own admin account is left out of the list.
+
+---
+
 ## 0.6.6 (2026-09-24): A live pointer when sharing a part
 
 ### Improved
