@@ -63,10 +63,11 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
     /** Up to [limit] messages older than [before] (or the newest ones), oldest first. */
     suspend fun messages(userId: Long, conversationId: Long, before: Long?, limit: Int): List<MessageDto> = db.tx {
         requireMember(conversationId, userId)
+        val cleared = clearedId(conversationId, userId)
         query(
             "$MESSAGE_SELECT WHERE m.conversation_id = ? AND m.id < ? AND m.id > ? ORDER BY m.id DESC LIMIT ?",
-            conversationId, before ?: Long.MAX_VALUE, clearedId(conversationId, userId), limit.coerceIn(1, 100),
-        ) { it.toMessage() }.reversed()
+            conversationId, before ?: Long.MAX_VALUE, cleared, limit.coerceIn(1, 100),
+        ) { it.toMessage().seenAfter(cleared) }.reversed()
     }
 
     /** A listener asks the session's owner for a song. It shows in the chat with Accept/Decline for the owner. */
@@ -116,6 +117,14 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         request.song?.let(::checkClip)
         val (message, members, conversation) = db.tx {
             requireMember(conversationId, me.id)
+            // You can reply to any message of the chat you can see, except lines like "… left the group".
+            request.replyTo?.let { replyTo ->
+                val ok = queryOne(
+                    "SELECT 1 FROM messages WHERE id = ? AND conversation_id = ? AND system = 0 AND id > ?",
+                    replyTo, conversationId, clearedId(conversationId, me.id),
+                ) { true }
+                if (ok == null) throw ApiError(HttpStatusCode.BadRequest, "That message can't be replied to")
+            }
             // A DM only works while you're still friends (and they still have an account).
             val dmPartner = queryOne(
                 """SELECT cm.user_id FROM conversations c JOIN conversation_members cm ON cm.conversation_id = c.id
@@ -127,18 +136,22 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             }
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
-                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                conversationId, me.id, body, songJson, now(), songRequest?.let { "pending" }, songRequest,
+                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                conversationId, me.id, body, songJson, now(), songRequest?.let { "pending" }, songRequest, request.replyTo,
             )
             // A new message brings the chat back for anyone who had deleted it.
             update("UPDATE conversation_members SET hidden = 0 WHERE conversation_id = ?", conversationId)
             // Your own message counts as read.
             update("UPDATE conversation_members SET last_read_id = ? WHERE conversation_id = ? AND user_id = ?", id, conversationId, me.id)
             val message = queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!
-            Triple(message, memberIds(conversationId), conversation(conversationId, me.id))
+            val cleared = query("SELECT user_id, cleared_id FROM conversation_members WHERE conversation_id = ?", conversationId) {
+                it.getLong(1) to it.getLong(2)
+            }.toMap()
+            Triple(message, cleared, conversation(conversationId, me.id))
         }
-        hub.send(members, MessageEvent(message))
-        onUnseen(message, conversation, members.filter { it != me.id && !hub.isVisible(it) })
+        // Everyone gets it, but a reply to a message from before someone joined doesn't show them what it said.
+        members.entries.groupBy({ message.seenAfter(it.value) }, { it.key }).forEach { (copy, ids) -> hub.send(ids, MessageEvent(copy)) }
+        onUnseen(message, conversation, members.keys.filter { it != me.id && !hub.isVisible(it) })
         return message
     }
 
@@ -356,7 +369,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             "SELECT u.* FROM conversation_members cm JOIN users u ON u.id = cm.user_id WHERE cm.conversation_id = ?", id,
         ) { it.toUser() }
         val cleared = clearedId(id, viewerId)
-        val last = queryOne("$MESSAGE_SELECT WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id DESC LIMIT 1", id, cleared) { it.toMessage() }
+        val last = queryOne("$MESSAGE_SELECT WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id DESC LIMIT 1", id, cleared) { it.toMessage().seenAfter(cleared) }
         val unread = queryOne(
             """SELECT count(*) FROM messages m JOIN conversation_members cm
                ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
@@ -393,12 +406,27 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         system = getInt("system") == 1,
         request = getString("request"),
         requestMode = getString("request_mode"),
+        replyTo = getObject("reply_id")?.let {
+            ReplyDto(
+                id = (it as Number).toLong(),
+                sender = toUser(prefix = "reply_sender_"),
+                body = getString("reply_body"),
+                song = getString("reply_song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
+            )
+        },
     )
+
+    /** How [this] looks to someone whose history starts after message [clearedId]. */
+    private fun MessageDto.seenAfter(clearedId: Long) =
+        if (replyTo != null && replyTo.id <= clearedId) copy(replyTo = ReplyDto(replyTo.id, replyTo.sender, hidden = true)) else this
 
     private companion object {
         /** How many unanswered song requests one listener can have in a chat at once. */
         const val MAX_PENDING_REQUESTS = 3
-        const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at
-            FROM messages m JOIN users u ON u.id = m.sender_id"""
+        const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at,
+                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json,
+                ru.id AS reply_sender_id, ru.username AS reply_sender_username, ru.display_name AS reply_sender_display_name, ru.avatar_at AS reply_sender_avatar_at
+            FROM messages m JOIN users u ON u.id = m.sender_id
+            LEFT JOIN messages r ON r.id = m.reply_to LEFT JOIN users ru ON ru.id = r.sender_id"""
     }
 }

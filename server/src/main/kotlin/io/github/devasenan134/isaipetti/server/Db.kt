@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -152,6 +152,9 @@ class Db(path: String) {
 
         // What a song request asks for: "next" (after the current song) or "now" (skip to it).
         val SCHEMA_V11 = "ALTER TABLE messages ADD COLUMN request_mode TEXT"
+
+        // Replies: the message (in the same chat) a message answers.
+        val SCHEMA_V12 = "ALTER TABLE messages ADD COLUMN reply_to INTEGER"
 
         // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,
         // and when each mix's songs last changed.
