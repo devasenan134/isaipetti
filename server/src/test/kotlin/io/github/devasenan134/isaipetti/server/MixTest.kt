@@ -152,6 +152,23 @@ class MixMakerTest {
     }
 
     @Test
+    fun `showcases are the same for everyone, only mixes from your listening are made for you`() {
+        val lib = Pretend.library()
+        val fan = maker(lib).home()
+        val stranger = MixMaker(lib, History.EMPTY, emptyMap(), (100 until 130).associateWith { 3 }, emptyMap(), personSeed = 7, today = today, now = now).home()
+        val showcases = setOf("composers", "singers", "moods", "artist-stations", "charts", "decades")
+        for (id in showcases) {
+            val a = fan.firstOrNull { it.id == id } ?: continue
+            val b = stranger.first { it.id == id }
+            assertEquals(a.mixes.map { it.id to it.songs.map { s -> s.id } }, b.mixes.map { it.id to it.songs.map { s -> s.id } }, id)
+            assertTrue(a.mixes.none { it.personal }, id)
+        }
+        assertTrue(fan.first { it.id == "made-for-you" }.mixes.all { it.personal })
+        assertTrue(fan.first { it.id == "your-stations" }.mixes.all { it.personal && it.endless })
+        assertTrue(fan.first { it.id == "composers" }.mixes.all { it.title.startsWith("This Is ") })
+    }
+
+    @Test
     fun `mood mixes use how the songs sound`() {
         val lib = Pretend.library()
         val maker = maker(lib)
