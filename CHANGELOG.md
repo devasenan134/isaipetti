@@ -7,6 +7,14 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.14 (2026-09-24): One jam button
+
+### Improved
+- **One jam button instead of two.** The bar under the chat's name (with **End jam** / **Leave**) is gone; who's jamming now shows next to the chat's name ("Jamming with Alice", "Alice is jamming").
+- **The jam button shows where you stand.** A record: start a jam. A DJ deck: it's your jam, tap to end it. Headphones: you're in someone else's jam, tap to leave. Headphones with a plus: a jam is on, tap to join.
+
+---
+
 ## 0.6.13 (2026-09-24): See who likes your playlists
 
 ### New
