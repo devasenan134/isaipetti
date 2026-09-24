@@ -71,8 +71,19 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
     }
 
     /** A listener asks the session's owner for a song. It shows in the chat with Accept/Decline for the owner. */
-    suspend fun requestSong(me: UserDto, conversationId: Long, song: SongRef): MessageDto =
-        send(me, conversationId, SendMessageRequest(song = song), songRequest = true)
+    suspend fun requestSong(me: UserDto, conversationId: Long, song: SongRef, mode: String): MessageDto {
+        if (mode != "next" && mode != "now") throw ApiError(HttpStatusCode.BadRequest, "Ask to play it next or now")
+        val waiting = db.tx {
+            queryOne(
+                "SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND sender_id = ? AND request = 'pending'",
+                conversationId, me.id,
+            ) { it.getInt(1) } ?: 0
+        }
+        if (waiting >= MAX_PENDING_REQUESTS) {
+            throw ApiError(HttpStatusCode.TooManyRequests, "You have $waiting requests waiting. Wait for an answer first")
+        }
+        return send(me, conversationId, SendMessageRequest(song = song), songRequest = mode)
+    }
 
     /** The owner accepts or declines a pending request; everyone in the chat sees the answer. */
     suspend fun answerRequest(conversationId: Long, messageId: Long, accept: Boolean): MessageDto {
@@ -99,7 +110,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         expired.forEach { hub.send(members, MessageUpdatedEvent(it)) }
     }
 
-    suspend fun send(me: UserDto, conversationId: Long, request: SendMessageRequest, songRequest: Boolean = false): MessageDto {
+    suspend fun send(me: UserDto, conversationId: Long, request: SendMessageRequest, songRequest: String? = null): MessageDto {
         val body = request.body.trim()
         if (body.isEmpty() && request.song == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
@@ -117,8 +128,8 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             }
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
-                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request) VALUES (?, ?, ?, ?, ?, ?)",
-                conversationId, me.id, body, songJson, now(), if (songRequest) "pending" else null,
+                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                conversationId, me.id, body, songJson, now(), songRequest?.let { "pending" }, songRequest,
             )
             // A new message brings the chat back for anyone who had deleted it.
             update("UPDATE conversation_members SET hidden = 0 WHERE conversation_id = ?", conversationId)
@@ -294,9 +305,12 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         createdAt = getLong("created_at"),
         system = getInt("system") == 1,
         request = getString("request"),
+        requestMode = getString("request_mode"),
     )
 
     private companion object {
+        /** How many unanswered song requests one listener can have in a chat at once. */
+        const val MAX_PENDING_REQUESTS = 3
         const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at
             FROM messages m JOIN users u ON u.id = m.sender_id"""
     }

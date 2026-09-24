@@ -26,6 +26,8 @@ data class Config(
     val timeZone: String = "Asia/Kolkata",
     /** How long a listening session waits for its owner to reconnect before it ends. */
     val listenOwnerGraceMs: Long = 60_000,
+    /** How long a listener waits between song requests. */
+    val songRequestCooldownMs: Long = 10_000,
 ) {
     companion object {
         fun fromEnv(): Config {
