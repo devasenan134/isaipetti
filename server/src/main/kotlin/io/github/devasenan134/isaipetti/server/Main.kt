@@ -10,6 +10,7 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
+import java.io.File
 import io.ktor.server.auth.bearer
 import io.ktor.server.auth.principal
 import io.ktor.server.engine.embeddedServer
@@ -85,6 +86,8 @@ fun Application.isaipettiSocial(
     val playlistLikes = PlaylistLikes(db)
     val pictures = Pictures(db, navidrome, config.dbPath)
     val mixes = music?.let { MixService(db, it, java.time.ZoneId.of(config.timeZone)) }
+    // Without a cast file next to the database, search just has no actors.
+    val search = music?.let { LibrarySearch(it, File(config.castFile ?: File(File(config.dbPath).absoluteFile.parentFile, "movie-cast.jsonl").path)) }
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
     // Every 10 minutes, remove people whose Navidrome account is gone.
@@ -221,6 +224,13 @@ fun Application.isaipettiSocial(
                     playlistLikes.unlike(call.me().id, call.parameters["id"].orEmpty())
                     call.respond(HttpStatusCode.NoContent)
                 }
+            }
+
+            // Spelling-tolerant search over the library, including lyricists and actors.
+            route("/search") {
+                fun searchOn() = search ?: throw ApiError(HttpStatusCode.NotFound, "Search is off on this server")
+                get { call.respond(searchOn().search(call.request.queryParameters["q"].orEmpty().take(100))) }
+                get("/people/{id}") { call.respond(searchOn().person(call.parameters["id"].orEmpty())) }
             }
 
             // Mixes, playlists and stations by Isai Pettai.

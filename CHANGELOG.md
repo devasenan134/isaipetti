@@ -7,6 +7,22 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.10 (2026-09-24): Search by actor and lyricist, and spelling that doesn't have to be right
+
+### New
+- **Search by actor.** Type an actor's name to see their movies, marked **Starring …**. Tap them for a page with their movies and every song from those movies. The cast comes from Wikipedia and Wikidata and is still being filled in, so some films don't list everyone yet.
+- **Search by lyricist.** Songs show **Lyrics by …** when you searched for who wrote them. A lyricist's page has all their songs and the movies they wrote for.
+- **Spelling doesn't have to be right.** Search goes by how the words sound, so "kanavae" finds Kanave, "thanush" finds Dhanush and "putu velai malai" finds Pudhu Vellai Mazhai. Half-typed words work too.
+
+### Improved
+- Results are grouped as **People** (with what they do: Composer, Artist, Lyricist, Actor), **Movies** and **Songs**.
+- One person, one result: different spellings of a name ("Vaali", "Vaalee") and an actor who also sings are shown as one person.
+
+### Server
+- `GET /search` and `GET /search/people/{id}`. Actors are read from `movie-cast.jsonl` next to the database (made by the library tools); without it, search just has no actors. If the friends server has no search, the app uses Navidrome's.
+
+---
+
 ## 0.6.9 (2026-09-24): Jams have a host
 
 ### New

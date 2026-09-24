@@ -70,3 +70,14 @@ tasks.register<JavaExec>("previewMixes") {
         project.findProperty("user") ?: "",
     )
 }
+
+// Try search on a copy of the real library:
+// ./gradlew previewSearch -PnavidromeDb=navidrome.db -PcastFile=movie-cast.jsonl -Pqueries="kanave|vairamuthu|vijay"
+tasks.register<JavaExec>("previewSearch") {
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("io.github.devasenan134.isaipetti.server.SearchPreviewKt")
+    args(
+        listOf(project.findProperty("navidromeDb") ?: "navidrome.db", project.findProperty("castFile") ?: "movie-cast.jsonl") +
+            (project.findProperty("queries") as String? ?: "").split("|").filter { it.isNotBlank() },
+    )
+}

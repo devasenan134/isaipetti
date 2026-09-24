@@ -5,7 +5,7 @@ The one place for what has shipped, what is being built, what is planned, and wh
 - **App:** Android (Kotlin + Jetpack Compose), plays music from a Navidrome server over the Subsonic API
 - **Server:** companion "isaipetti-social" server in `server/` (Kotlin + Ktor + SQLite) for friends, chat, sign-up and mixes
 - **Analyzer:** optional audio analyzer in `analyzer/` (Python + CLAP) for moods and sound-alikes
-- **Current version:** 0.6.6 (app `versionCode` 22)
+- **Current version:** 0.6.10 (app `versionCode` 26)
 - **Last updated:** 2026-09-23
 
 ---
@@ -29,6 +29,16 @@ The one place for what has shipped, what is being built, what is planned, and wh
 ## Released
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### 0.6.10: Search by actor and lyricist, forgiving spelling
+- Search finds actors (their movies) and lyricists (their songs); spelling goes by sound
+- People, Movies and Songs in results; one person per name
+
+### 0.6.9: Jams have a host
+- Only the person who starts a jam controls it; others send song requests in the chat
+
+### 0.6.7: Listening stats for admins
+- Hours and plays per person, top picks, and charts, for Navidrome admins
 
 ### 0.6.6: A live pointer when sharing a part
 - The pointer follows the playing song; Preview plays from the in point and stops at the out point; a play/pause button
