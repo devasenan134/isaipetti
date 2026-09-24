@@ -317,6 +317,10 @@ fun Application.isaipettiSocial(
                     call.response.headers.append(HttpHeaders.CacheControl, "private, max-age=2592000")
                     call.respondFile(file)
                 }
+                // Group members: the owner adds and removes them; everyone can see who's online.
+                post("/{id}/members") { call.respond(chat.addMembers(call.me(), call.longParam("id"), call.receive<AddMembersRequest>().userIds)) }
+                delete("/{id}/members/{userId}") { call.respond(chat.removeMember(call.me(), call.longParam("id"), call.longParam("userId"))) }
+                get("/{id}/online") { call.respond(chat.onlineMembers(call.me().id, call.longParam("id"))) }
                 post("/{id}/leave") {
                     chat.leave(call.me(), call.longParam("id"))
                     call.respond(HttpStatusCode.NoContent)

@@ -225,6 +225,64 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         return conversation
     }
 
+    /**
+     * The group's owner adds friends of theirs to it. Each new member sees the chat from the
+     * "… added …" line on, not the history before they joined.
+     */
+    suspend fun addMembers(me: UserDto, conversationId: Long, userIds: List<Long>): ConversationDto {
+        val myFriends = friends.friendIds(me.id).toSet()
+        val (messages, members, conversation) = db.tx {
+            requireOwner(conversationId, me.id)
+            val current = memberIds(conversationId).toSet()
+            val adding = userIds.toSet() - current
+            if (adding.isEmpty()) throw ApiError(HttpStatusCode.BadRequest, "They're already in the group")
+            if (!myFriends.containsAll(adding)) throw ApiError(HttpStatusCode.Forbidden, "You can only add friends to a group")
+            val lastId = queryOne("SELECT max(id) FROM messages WHERE conversation_id = ?", conversationId) { it.getLong(1) } ?: 0
+            val lines = adding.map { userId ->
+                update(
+                    "INSERT INTO conversation_members (conversation_id, user_id, cleared_id, last_read_id) VALUES (?, ?, ?, ?)",
+                    conversationId, userId, lastId, lastId,
+                )
+                val name = queryOne("SELECT display_name FROM users WHERE id = ?", userId) { it.getString(1) }
+                val id = insert(
+                    "INSERT INTO messages (conversation_id, sender_id, body, created_at, system) VALUES (?, ?, ?, ?, 1)",
+                    conversationId, me.id, "added $name", now(),
+                )
+                queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!
+            }
+            Triple(lines, memberIds(conversationId), conversation(conversationId, me.id))
+        }
+        // Everyone (the new members included) gets the lines, which also brings the group to the new members' chat list.
+        messages.forEach { hub.send(members, MessageEvent(it)) }
+        return conversation
+    }
+
+    /** The group's owner takes someone out of it. The chat disappears for them; the others see "… removed …". */
+    suspend fun removeMember(me: UserDto, conversationId: Long, userId: Long): ConversationDto {
+        if (userId == me.id) throw ApiError(HttpStatusCode.BadRequest, "Leave the group instead")
+        val (message, members, conversation) = db.tx {
+            requireOwner(conversationId, me.id)
+            requireMember(conversationId, userId)
+            update("DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?", conversationId, userId)
+            val name = queryOne("SELECT display_name FROM users WHERE id = ?", userId) { it.getString(1) }
+            val id = insert(
+                "INSERT INTO messages (conversation_id, sender_id, body, created_at, system) VALUES (?, ?, ?, ?, 1)",
+                conversationId, me.id, "removed $name", now(),
+            )
+            Triple(queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!, memberIds(conversationId), conversation(conversationId, me.id))
+        }
+        onLeft(userId, conversationId) // out of the group's jam too
+        hub.send(listOf(userId), ConversationRemovedEvent(conversationId))
+        hub.send(members, MessageEvent(message))
+        return conversation
+    }
+
+    /** Which members of a chat are online right now (for the member list). */
+    suspend fun onlineMembers(userId: Long, conversationId: Long): List<Long> = db.tx {
+        requireMember(conversationId, userId)
+        memberIds(conversationId)
+    }.filter { hub.isOnline(it) }
+
     /** A group's photo file, for its members only; null if it has none. */
     suspend fun groupPicture(userId: Long, conversationId: Long): java.io.File? {
         db.tx { requireMember(conversationId, userId) }
@@ -242,6 +300,14 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         }
         onRemoved(conversationId, members)
         hub.send(members, ConversationRemovedEvent(conversationId))
+    }
+
+    /** Only a group's owner (who made it, or took over when they left) can change who's in it. */
+    private fun Connection.requireOwner(conversationId: Long, userId: Long) {
+        requireMember(conversationId, userId)
+        requireGroup(conversationId, "Only group chats have members to change")
+        val owner = queryOne("SELECT created_by FROM conversations WHERE id = ?", conversationId) { it.getLong(1) }
+        if (owner != userId) throw ApiError(HttpStatusCode.Forbidden, "Only the group's owner can add or remove people")
     }
 
     private fun Connection.requireGroup(conversationId: Long, error: String) {

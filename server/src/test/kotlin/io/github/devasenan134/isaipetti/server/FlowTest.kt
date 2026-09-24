@@ -457,6 +457,53 @@ class FlowTest {
     }
 
     @Test
+    fun `a group's owner adds and removes members`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val (alice, bob, carol, erin) = listOf("alice", "bob", "carol", "erin").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        client.postJson("/conversations/${group.id}/messages", SendMessageRequest("before carol"), alice.sessionToken)
+        val members = "/conversations/${group.id}/members"
+        suspend fun DefaultWebSocketSession.next(match: (Event) -> Boolean): Event {
+            while (true) nextEvent().takeIf(match)?.let { return it }
+        }
+
+        // Only the owner adds people, and only her friends.
+        assertEquals(HttpStatusCode.Forbidden, client.postJson(members, AddMembersRequest(listOf(carol.user.id)), bob.sessionToken).status)
+        assertEquals(HttpStatusCode.Forbidden, client.postJson(members, AddMembersRequest(listOf(erin.user.id)), alice.sessionToken).status)
+        assertEquals(HttpStatusCode.BadRequest, client.postJson(members, AddMembersRequest(listOf(bob.user.id)), alice.sessionToken).status)
+
+        // Carol is added: the group shows up for her, from the "added" line on (not the history before).
+        val carolWs = client.webSocketSession("/ws?token=${carol.sessionToken}")
+        val added = client.postJson(members, AddMembersRequest(listOf(carol.user.id)), alice.sessionToken).body<ConversationDto>()
+        assertEquals(setOf("alice", "bob", "carol"), added.members.map { it.username }.toSet())
+        assertEquals("added carol", (carolWs.next { it is MessageEvent } as MessageEvent).message.body)
+        assertEquals(listOf(group.id), client.getJson<List<ConversationDto>>("/conversations", carol).map { it.id })
+        assertEquals(listOf("added carol"), client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", carol).map { it.body })
+
+        // Who's online: Carol has the app open, Bob doesn't.
+        assertEquals(listOf(carol.user.id), client.getJson<List<Long>>("/conversations/${group.id}/online", alice))
+
+        // Only the owner removes people, and not herself (she leaves instead).
+        assertEquals(HttpStatusCode.Forbidden, client.delete("$members/${carol.user.id}") { bearerAuth(bob.sessionToken) }.status)
+        assertEquals(HttpStatusCode.BadRequest, client.delete("$members/${alice.user.id}") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(HttpStatusCode.OK, client.delete("$members/${carol.user.id}") { bearerAuth(alice.sessionToken) }.status)
+        assertEquals(group.id, (carolWs.next { it is ConversationRemovedEvent } as ConversationRemovedEvent).conversationId)
+        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", carol))
+        assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${group.id}/messages") { bearerAuth(carol.sessionToken) }.status)
+        val removed = client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", bob).last()
+        assertEquals(Triple("alice", "removed carol", true), Triple(removed.sender.username, removed.body, removed.system))
+    }
+
+    @Test
     fun `liked playlists are saved per person`() = testApplication {
         application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
         val client = createClient { install(ContentNegotiation) { json(eventJson) } }
