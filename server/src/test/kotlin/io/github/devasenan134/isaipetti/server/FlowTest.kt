@@ -501,6 +501,63 @@ class FlowTest {
         assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${group.id}/messages") { bearerAuth(carol.sessionToken) }.status)
         val removed = client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", bob).last()
         assertEquals(Triple("alice", "removed carol", true), Triple(removed.sender.username, removed.body, removed.system))
+
+        // Only the owner renames it, to a real name that's new.
+        suspend fun rename(name: String, session: SessionResponse) = client.put("/conversations/${group.id}/name") {
+            bearerAuth(session.sessionToken); contentType(ContentType.Application.Json); setBody(RenameGroupRequest(name))
+        }
+        assertEquals(HttpStatusCode.Forbidden, rename("bob's gang", bob).status)
+        assertEquals(HttpStatusCode.BadRequest, rename("   ", alice).status)
+        assertEquals(HttpStatusCode.BadRequest, rename("gang", alice).status)
+        assertEquals("Raja fans", rename("  Raja fans ", alice).body<ConversationDto>().name)
+        assertEquals("Raja fans", client.getJson<List<ConversationDto>>("/conversations", bob).single().name)
+        assertEquals("renamed the group to “Raja fans”", client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", bob).last().body)
+    }
+
+    @Test
+    fun `replying to a message`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val (alice, bob, carol) = listOf("alice", "bob", "carol").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        val other = client.postJson("/conversations/group", NewGroupRequest("other", listOf(bob.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        val messages = "/conversations/${group.id}/messages"
+        val song = SongRef("s1", "Ilaya Nila", "SPB", "Payanangal Mudivathillai", "a1", "c1", 270)
+        val question = client.postJson(messages, SendMessageRequest("anyone up for a jam?", song), alice.sessionToken).body<MessageDto>()
+        val otherMessage = client.postJson("/conversations/${other.id}/messages", SendMessageRequest("hi"), alice.sessionToken).body<MessageDto>()
+
+        // Bob replies: the reply quotes Alice's message, song and all, for everyone.
+        val reply = client.postJson(messages, SendMessageRequest("me!", replyTo = question.id), bob.sessionToken).body<MessageDto>()
+        assertEquals(ReplyDto(question.id, question.sender, "anyone up for a jam?", song), reply.replyTo)
+        assertEquals(reply.replyTo, client.getJson<List<MessageDto>>(messages, alice).last().replyTo)
+
+        // Not to a message of another chat, one that doesn't exist, or a line like "added carol".
+        assertEquals(HttpStatusCode.BadRequest, client.postJson(messages, SendMessageRequest("x", replyTo = otherMessage.id), bob.sessionToken).status)
+        assertEquals(HttpStatusCode.BadRequest, client.postJson(messages, SendMessageRequest("x", replyTo = 9999), bob.sessionToken).status)
+        client.postJson("/conversations/${group.id}/members", AddMembersRequest(listOf(carol.user.id)), alice.sessionToken)
+        val added = client.getJson<List<MessageDto>>(messages, alice).last()
+        assertEquals(HttpStatusCode.BadRequest, client.postJson(messages, SendMessageRequest("x", replyTo = added.id), bob.sessionToken).status)
+
+        // Carol joined later: a reply to something from before shows her who wrote it, not what it said.
+        val carolWs = client.webSocketSession("/ws?token=${carol.sessionToken}")
+        client.postJson(messages, SendMessageRequest("still on?", replyTo = question.id), bob.sessionToken)
+        var event: Event
+        do event = carolWs.nextEvent() while (event !is MessageEvent)
+        val live = event.message
+        assertEquals(ReplyDto(question.id, question.sender, hidden = true), live.replyTo)
+        assertEquals(ReplyDto(question.id, question.sender, hidden = true), client.getJson<List<MessageDto>>(messages, carol).last().replyTo)
+        assertEquals(false, client.getJson<List<MessageDto>>(messages, bob).last().replyTo?.hidden)
+        // And she can't reply to it herself.
+        assertEquals(HttpStatusCode.BadRequest, client.postJson(messages, SendMessageRequest("x", replyTo = question.id), carol.sessionToken).status)
     }
 
     @Test

@@ -7,6 +7,19 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.7.0 (2026-09-24): Replies, and renaming groups
+
+### New
+- **Reply to a message.** Swipe a message to the right, or long-press it and tap **Reply**. A "Replying to …" bar shows above the text box (✕ cancels it), and your message carries a quote of the one you answered. Tap the quote to jump to that message. Songs you share from the music button can be replies too. Someone added to a group later sees who a reply answers but not what the earlier message said.
+- **Copy a message's text** from the same long-press menu.
+- **The group's owner can rename it.** Open the group's members (tap its name at the top of the chat) and tap the pencil next to the name. Everyone in the group sees "… renamed the group to …" in the chat, and the new name shows up everywhere. Only the owner can rename it, just like adding and removing people.
+
+### Server
+- New `PUT /conversations/{id}/name` (owner only, 1 to 50 characters).
+- Messages can have `replyTo` (a message of the same chat you can see, not a system line); messages come back with the quoted message. Database schema 12 (`messages.reply_to`), so back up the DB before deploying.
+
+---
+
 ## Server update (2026-09-24): Stations aren't empty anymore
 
 Server only, released after 0.6.19. No new app version.

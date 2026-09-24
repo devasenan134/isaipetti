@@ -119,9 +119,13 @@ class SocialApi(
     suspend fun createGroup(name: String, memberIds: List<Long>): Conversation = post("/conversations/group", GroupBody(name, memberIds))
     suspend fun messages(conversationId: Long, before: Long? = null): List<ChatMessage> =
         get("/conversations/$conversationId/messages" + (before?.let { "?before=$it" } ?: ""))
-    suspend fun sendMessage(conversationId: Long, body: String, song: SongRef? = null): ChatMessage =
-        post("/conversations/$conversationId/messages", MessageBody(body, song))
+    /** Sends a message, which can be a reply to message [replyTo] of the same chat. */
+    suspend fun sendMessage(conversationId: Long, body: String, song: SongRef? = null, replyTo: Long? = null): ChatMessage =
+        post("/conversations/$conversationId/messages", MessageBody(body, song, replyTo))
     suspend fun deleteConversation(conversationId: Long) = send<Unit>("DELETE", "/conversations/$conversationId", null)
+    /** The group's owner renames it. */
+    suspend fun renameGroup(conversationId: Long, name: String): Conversation =
+        send("PUT", "/conversations/$conversationId/name", json.encodeToString(NameBody.serializer(), NameBody(name)), Conversation.serializer())
     /** The group's owner adds friends to it. */
     suspend fun addMembers(conversationId: Long, userIds: List<Long>): Conversation = post("/conversations/$conversationId/members", UserIdsBody(userIds))
     /** The group's owner takes someone out of it. */
@@ -185,7 +189,8 @@ class SocialApi(
     @Serializable private data class UserIdBody(val userId: Long)
     @Serializable private data class GroupBody(val name: String, val memberIds: List<Long>)
     @Serializable private data class UserIdsBody(val userIds: List<Long>)
-    @Serializable private data class MessageBody(val body: String, val song: SongRef?)
+    @Serializable private data class NameBody(val name: String)
+    @Serializable private data class MessageBody(val body: String, val song: SongRef?, val replyTo: Long? = null)
     @Serializable private data class ReadBody(val messageId: Long)
     @Serializable private data class RenameBody(val displayName: String)
     @Serializable private data class DeviceBody(val token: String)

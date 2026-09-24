@@ -73,6 +73,21 @@ data class MessageDto(
     val request: String? = null,
     /** What a song request asks for: "next" (after the current song) or "now" (skip to it). */
     val requestMode: String? = null,
+    /** The message this one replies to, quoted. */
+    val replyTo: ReplyDto? = null,
+)
+
+/**
+ * The message a reply quotes. [hidden] when it's from before the viewer joined the group (or
+ * cleared the chat): then only who wrote it is shown, not what it said.
+ */
+@Serializable
+data class ReplyDto(
+    val id: Long,
+    val sender: UserDto,
+    val body: String = "",
+    val song: SongRef? = null,
+    val hidden: Boolean = false,
 )
 
 @Serializable
@@ -98,7 +113,8 @@ data class ConversationDto(
 @Serializable data class NewDmRequest(val userId: Long)
 @Serializable data class NewGroupRequest(val name: String, val memberIds: List<Long>)
 @Serializable data class AddMembersRequest(val userIds: List<Long>)
-@Serializable data class SendMessageRequest(val body: String = "", val song: SongRef? = null)
+@Serializable data class RenameGroupRequest(val name: String)
+@Serializable data class SendMessageRequest(val body: String = "", val song: SongRef? = null, val replyTo: Long? = null)
 @Serializable data class MarkReadRequest(val messageId: Long)
 @Serializable data class DeviceRequest(val token: String)
 @Serializable data class RenameRequest(val displayName: String)
