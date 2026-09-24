@@ -7,6 +7,20 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.12 (2026-09-24): Jam controls in the chat
+
+### New
+- **Jam queue in the chat.** While you're in a chat's jam, a queue button sits next to the jam button at the top. Everyone in the jam can see what's coming up; the host can also drag songs to move them and swipe them left to remove them.
+- **Your jam looks different.** When you started the jam in a chat, its button turns into a record. Tap it to end the jam for everyone. The bar under the chat's name says **End jam** instead of **Leave** for the host.
+
+### Improved
+- Search's recent list is now called **Your recent artists**.
+
+### Fixed
+- **Song requests in the chat can't be played by accident.** A request shows the song without a play button, and tapping it does nothing, so it can't replace your queue (or the jam's music).
+
+---
+
 ## 0.6.11 (2026-09-24): Ask for a song now or next, and edit the queue
 
 ### New
