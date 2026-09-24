@@ -55,6 +55,8 @@ tasks.register<JavaExec>("runDev") {
     environment("DB_PATH", layout.buildDirectory.file("dev/isaipetti-social.db").get().asFile.path)
     // Optional: real push notifications while testing (-PfirebaseKey=/path/to/key.json).
     (project.findProperty("firebaseKey") as String?)?.let { environment("FIREBASE_KEY_FILE", it) }
+    // Optional: a (copy of a) Navidrome database, for mixes and admin stats (-PnavidromeDb=/path/to/navidrome.db).
+    (project.findProperty("navidromeDb") as String?)?.let { environment("NAVIDROME_DB", it) }
 }
 
 // Prints the mixes a person would get, from a copy of Navidrome's database and the analyzer's features.db:
