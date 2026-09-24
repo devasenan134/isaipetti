@@ -34,6 +34,14 @@ data class FriendRemovedEvent(val userId: Long) : Event
 @Serializable @SerialName("conversationUpdated")
 data class ConversationUpdatedEvent(val conversationId: Long) : Event
 
+/** [userId] is typing in a chat (sent every few seconds while they type; the app shows it for a little while). */
+@Serializable @SerialName("typing")
+data class TypingEvent(val conversationId: Long, val userId: Long) : Event
+
+/** [userId] has read a chat up to [messageId]. */
+@Serializable @SerialName("read")
+data class ReadEvent(val conversationId: Long, val userId: Long, val messageId: Long) : Event
+
 /** A group was deleted for everyone. */
 @Serializable @SerialName("conversationRemoved")
 data class ConversationRemovedEvent(val conversationId: Long) : Event
@@ -44,6 +52,10 @@ sealed interface ClientEvent
 
 @Serializable @SerialName("nowPlaying")
 data class NowPlayingUpdate(val song: SongRef? = null) : ClientEvent
+
+/** You're typing in a chat (at most every few seconds). */
+@Serializable @SerialName("typing")
+data class TypingUpdate(val conversationId: Long) : ClientEvent
 
 /** Whether the app is on screen. Push notifications go to people who don't have it open. */
 @Serializable @SerialName("appState")

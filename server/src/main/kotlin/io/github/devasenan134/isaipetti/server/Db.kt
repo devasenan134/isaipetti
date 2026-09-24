@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -170,6 +170,19 @@ class Db(path: String) {
                 expires_at INTEGER NOT NULL,
                 PRIMARY KEY (conversation_id, message_id)
             )
+        """.trimIndent()
+
+        // Emoji reactions (one per person per message), and edited or deleted messages.
+        val SCHEMA_V14 = """
+            CREATE TABLE reactions (
+                message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                emoji TEXT NOT NULL,
+                reacted_at INTEGER NOT NULL,
+                PRIMARY KEY (message_id, user_id)
+            );
+            ALTER TABLE messages ADD COLUMN edited_at INTEGER;
+            ALTER TABLE messages ADD COLUMN deleted_at INTEGER
         """.trimIndent()
 
         // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,

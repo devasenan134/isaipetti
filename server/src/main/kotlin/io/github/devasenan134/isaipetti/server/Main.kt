@@ -160,6 +160,7 @@ fun Application.isaipettiSocial(
                     when (event) {
                         null -> Unit
                         is ListenStart, is ListenJoin, is ListenLeave, is ListenUpdate -> listen.handle(user.id, event)
+                        is TypingUpdate -> runCatching { chat.typing(user.id, event.conversationId) }
                         else -> hub.handle(user.id, this, event)
                     }
                 }
@@ -329,6 +330,17 @@ fun Application.isaipettiSocial(
                 post("/{id}/pins") {
                     val request = call.receive<PinRequest>()
                     call.respond(chat.pin(call.me(), call.longParam("id"), request.messageId, request.hours))
+                }
+                // Your own messages: change their text, or delete them for everyone. Anyone reacts with an emoji.
+                patch("/{id}/messages/{messageId}") {
+                    call.respond(chat.edit(call.me(), call.longParam("id"), call.longParam("messageId"), call.receive<EditMessageRequest>().body))
+                }
+                delete("/{id}/messages/{messageId}") { call.respond(chat.deleteMessage(call.me(), call.longParam("id"), call.longParam("messageId"))) }
+                put("/{id}/messages/{messageId}/reaction") {
+                    call.respond(chat.react(call.me(), call.longParam("id"), call.longParam("messageId"), call.receive<ReactRequest>().emoji))
+                }
+                delete("/{id}/messages/{messageId}/reaction") {
+                    call.respond(chat.react(call.me(), call.longParam("id"), call.longParam("messageId"), null))
                 }
                 delete("/{id}/pins/{messageId}") { call.respond(chat.unpin(call.me(), call.longParam("id"), call.longParam("messageId"))) }
                 delete("/{id}") {

@@ -7,6 +7,22 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.9.0 (2026-09-24): Reactions, editing, deleting, typing and seen
+
+### New
+- **React to messages.** Long-press a message: a row of emoji (👍 ❤️ 😂 😮 😢 🙏) is at the top of the menu. Reactions show under the message with how many people chose each. Tap one to react the same way, or tap yours to take it back. Everyone has one reaction per message; choosing another replaces it.
+- **Edit your messages.** Long-press your own message and tap **Edit**. The text goes back into the message box; change it and tap send. It shows "edited" next to the time. Photo captions can be edited too.
+- **Delete your messages for everyone.** Long-press your own message and tap **Delete for everyone**. It's replaced with "This message was deleted" (its photo, pins and reactions go too), and replies to it say "Deleted message".
+- **"typing…"** shows under the chat's name while the other person types (in a group: "Alice is typing…").
+- **Seen.** Under your newest message: "Seen" in a DM, and "Seen by Alice, Bob" or "Seen by everyone" in a group.
+
+### Server
+- `PUT`/`DELETE /conversations/{id}/messages/{messageId}/reaction`, `PATCH` (edit) and `DELETE` (delete for everyone) on `/conversations/{id}/messages/{messageId}`, only for your own messages.
+- Messages carry `reactions`, `editedAt` and `deleted`; chats carry `readMarks`. New events: `typing` (the app sends one every few seconds while you type, and the server passes it on), and `read` (someone read up to a message).
+- Database schema 14 (a `reactions` table, `edited_at` and `deleted_at` on messages), so back up the DB before deploying.
+
+---
+
 ## 0.8.0 (2026-09-24): Photos, GIFs, stickers and pinned messages
 
 ### New
