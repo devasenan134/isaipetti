@@ -30,6 +30,10 @@ data class FriendAddedEvent(val friend: FriendDto) : Event
 @Serializable @SerialName("friendRemoved")
 data class FriendRemovedEvent(val userId: Long) : Event
 
+/** Something about a chat changed that isn't a new message (a pin was removed): fetch it again. */
+@Serializable @SerialName("conversationUpdated")
+data class ConversationUpdatedEvent(val conversationId: Long) : Event
+
 /** A group was deleted for everyone. */
 @Serializable @SerialName("conversationRemoved")
 data class ConversationRemovedEvent(val conversationId: Long) : Event

@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -155,6 +155,22 @@ class Db(path: String) {
 
         // Replies: the message (in the same chat) a message answers.
         val SCHEMA_V12 = "ALTER TABLE messages ADD COLUMN reply_to INTEGER"
+
+        // Photos, GIFs and stickers in chats (the files sit in chat-images/<chat>/<message>.<type>),
+        // and pinned messages, each until it expires.
+        val SCHEMA_V13 = """
+            ALTER TABLE messages ADD COLUMN image_kind TEXT;
+            ALTER TABLE messages ADD COLUMN image_width INTEGER;
+            ALTER TABLE messages ADD COLUMN image_height INTEGER;
+            CREATE TABLE pins (
+                conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                message_id INTEGER NOT NULL,
+                pinned_by INTEGER NOT NULL REFERENCES users(id),
+                pinned_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                PRIMARY KEY (conversation_id, message_id)
+            )
+        """.trimIndent()
 
         // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,
         // and when each mix's songs last changed.

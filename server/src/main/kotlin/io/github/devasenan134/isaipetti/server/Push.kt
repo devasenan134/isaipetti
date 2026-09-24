@@ -135,9 +135,18 @@ class Push(private val db: Db, private val sender: PushSender) {
             "title" to if (conversation.kind == "group") conversation.name.orEmpty() else message.sender.displayName,
             "sender" to message.sender.displayName,
             "isGroup" to (conversation.kind == "group").toString(),
-            "body" to (message.song?.let { "♪ ${it.title}" + it.clipLabel() + if (message.body.isNotBlank()) " – ${message.body}" else "" } ?: message.body),
+            "body" to when {
+                message.image != null -> imageLabel(message.image.kind) + if (message.body.isNotBlank()) " – ${message.body}" else ""
+                else -> message.song?.let { "♪ ${it.title}" + it.clipLabel() + if (message.body.isNotBlank()) " – ${message.body}" else "" } ?: message.body
+            },
         ),
     )
+
+    private fun imageLabel(kind: String) = when (kind) {
+        "gif" -> "GIF"
+        "sticker" -> "Sticker"
+        else -> "📷 Photo"
+    }
 
     private fun SongRef.clipLabel() = if (isClip) " (${clockTime(clipStartMs!!)}–${clockTime(clipEndMs!!)})" else ""
 

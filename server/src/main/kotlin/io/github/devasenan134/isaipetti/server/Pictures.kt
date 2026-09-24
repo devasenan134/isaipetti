@@ -25,15 +25,45 @@ class Picture(val bytes: ByteArray) {
     }
 }
 
+/**
+ * A photo, GIF or sticker sent in a chat. Photos come already shrunk by the app; GIFs and stickers
+ * (from the keyboard) are kept as they are, so they can be bigger.
+ */
+class ChatImage(val bytes: ByteArray, val kind: String, val width: Int, val height: Int) {
+    val extension: String = when {
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte() -> "jpeg"
+        bytes.size >= 8 && bytes[0] == 0x89.toByte() && String(bytes, 1, 3) == "PNG" -> "png"
+        bytes.size >= 12 && String(bytes, 0, 4) == "RIFF" && String(bytes, 8, 4) == "WEBP" -> "webp"
+        bytes.size >= 6 && String(bytes, 0, 6).let { it == "GIF87a" || it == "GIF89a" } -> "gif"
+        else -> throw ApiError(HttpStatusCode.BadRequest, "That isn't a JPEG, PNG, WebP or GIF picture")
+    }
+
+    init {
+        if (kind !in KINDS) throw ApiError(HttpStatusCode.BadRequest, "Send a photo, GIF or sticker")
+        if (width !in 1..20_000 || height !in 1..20_000) throw ApiError(HttpStatusCode.BadRequest, "Say how big the picture is")
+        if (bytes.size > MAX_BYTES) throw ApiError(HttpStatusCode.PayloadTooLarge, "The picture is too big (5 MB at most)")
+    }
+
+    companion object {
+        const val MAX_BYTES = 5 * 1024 * 1024
+        val KINDS = setOf("photo", "gif", "sticker")
+    }
+}
+
 /** Picture files kept next to the database, one per id, in the folder [name] (e.g. "avatars"). */
 class PictureFolder(dbPath: String, name: String) {
     private val dir = File(File(dbPath).absoluteFile.parentFile, name).apply { mkdirs() }
 
-    fun save(id: Long, picture: Picture) {
+    fun save(id: Long, picture: Picture) = save(id, picture.bytes, picture.extension)
+
+    fun save(id: Long, bytes: ByteArray, extension: String) {
         remove(id)
         // Write next to it, then swap, so nobody ever gets half a picture.
-        File(dir, "$id.tmp").apply { writeBytes(picture.bytes) }.renameTo(File(dir, "$id.${picture.extension}"))
+        File(dir, "$id.tmp").apply { writeBytes(bytes) }.renameTo(File(dir, "$id.$extension"))
     }
+
+    /** Removes the whole folder (a deleted chat's pictures). */
+    fun removeAll() = dir.deleteRecursively()
 
     fun remove(id: Long) = files(id).forEach { it.delete() }
 

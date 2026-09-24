@@ -181,7 +181,10 @@ Features agreed for an upcoming version.
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _none yet_ | | | | | |
+| Emoji reactions on messages | Chat | P1 | 0.9.0 | Planned | Long-press → a row of emoji; counts under the bubble |
+| Edit and delete your own messages (for everyone) | Chat | P1 | 0.9.0 | Planned | "edited" label; deleted shows "This message was deleted" |
+| "Typing…" under the chat's name | Chat | P2 | 0.9.0 | Planned | Over the WebSocket, not saved |
+| Seen by (read receipts) | Chat | P2 | 0.9.0 | Planned | From each member's last read message |
 
 ---
 

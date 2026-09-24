@@ -7,6 +7,22 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.8.0 (2026-09-24): Photos, GIFs, stickers and pinned messages
+
+### New
+- **Send photos.** Tap the picture button next to the message box, then pick a photo (or a GIF) from your gallery or take one with the camera. You see it before it's sent and can add a caption. Photos are shrunk to a sharp but small size, so they send fast.
+- **GIFs and stickers from your keyboard.** In Gboard or Samsung's keyboard, open the GIF or sticker tab and tap one: it's sent straight away. GIFs and animated stickers move in the chat. Stickers show on their own, without a bubble.
+- **Open a photo full screen.** Tap it. Pinch or double-tap to zoom, and tap **Save** to keep it in your phone's Pictures/Isaipetti folder (Android 10 and newer).
+- **Pin messages.** Long-press a message and tap **Pin**, then choose **24 hours**, **7 days** or **30 days**. Pinned messages show in a bar under the chat's name. Tap the bar to go to the message (with more than one pin, each tap goes to the next). Long-press the bar, or the message, to unpin it. A chat can have 3 pins; pinning a fourth replaces the oldest. Everyone sees "… pinned a message", and tapping that line goes to the message too.
+- Replies, the chat list and notifications say "📷 Photo", "GIF" or "Sticker" for pictures.
+
+### Server
+- `POST /conversations/{id}/images?kind=photo|gif|sticker&width=&height=&caption=&replyTo=` (the picture is the body: JPEG, PNG, WebP or GIF, up to 5 MB) and `GET /conversations/{id}/messages/{messageId}/image` (members who can see that message only). Files are kept in `data/chat-images/<chat>/`, and deleted with the chat.
+- `POST /conversations/{id}/pins` (`messageId`, `hours` = 24, 168 or 720) and `DELETE /conversations/{id}/pins/{messageId}`. Chats now include their `pins`. A new `conversationUpdated` event tells apps to fetch a chat again after an unpin.
+- Database schema 13 (picture columns on `messages`, a `pins` table), so back up the DB before deploying.
+
+---
+
 ## 0.7.0 (2026-09-24): Replies, and renaming groups
 
 ### New

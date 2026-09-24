@@ -561,6 +561,96 @@ class FlowTest {
     }
 
     @Test
+    fun `photos, GIFs and stickers in a chat`() = testApplication {
+        val db = dbFile()
+        application { isaipettiSocial(Config(0, db, "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val (alice, bob, carol) = listOf("alice", "bob", "carol").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte()) + ByteArray(100)
+        val gif = "GIF89a".toByteArray() + ByteArray(100)
+        suspend fun upload(bytes: ByteArray, query: String, session: SessionResponse = alice) =
+            client.post("/conversations/${group.id}/images?$query") {
+                bearerAuth(session.sessionToken); contentType(ContentType.Application.OctetStream); setBody(bytes)
+            }
+
+        // A photo with a caption: the message says what it is and how big, and the picture comes back as sent.
+        val photo = upload(jpeg, "kind=photo&width=1600&height=1200&caption=Marina%20beach").body<MessageDto>()
+        assertEquals(ImageDto("photo", 1600, 1200) to "Marina beach", photo.image to photo.body)
+        val image = "/conversations/${group.id}/messages/${photo.id}/image"
+        assertTrue(jpeg.contentEquals(client.get(image) { bearerAuth(bob.sessionToken) }.body<ByteArray>()))
+        // A GIF from the keyboard, as a reply: the quote knows it's a photo.
+        val reply = upload(gif, "kind=gif&width=200&height=150&replyTo=${photo.id}", bob).body<MessageDto>()
+        assertEquals("gif" to "photo", reply.image?.kind to reply.replyTo?.imageKind)
+
+        // Not a picture, no size, an unknown kind, or too big: refused.
+        assertEquals(HttpStatusCode.BadRequest, upload("hello".toByteArray(), "kind=photo&width=1&height=1").status)
+        assertEquals(HttpStatusCode.BadRequest, upload(jpeg, "kind=photo").status)
+        assertEquals(HttpStatusCode.BadRequest, upload(jpeg, "kind=video&width=1&height=1").status)
+        assertEquals(HttpStatusCode.PayloadTooLarge, upload(gif + ByteArray(ChatImage.MAX_BYTES), "kind=gif&width=1&height=1").status)
+
+        // Only for people in the chat, and not someone who joined after it was sent.
+        assertEquals(HttpStatusCode.NotFound, client.get(image) { bearerAuth(carol.sessionToken) }.status)
+        client.postJson("/conversations/${group.id}/members", AddMembersRequest(listOf(carol.user.id)), alice.sessionToken)
+        assertEquals(HttpStatusCode.NotFound, client.get(image) { bearerAuth(carol.sessionToken) }.status)
+
+        // Deleting the group deletes its pictures.
+        val folder = File(File(db).absoluteFile.parentFile, "chat-images/${group.id}")
+        assertTrue(folder.listFiles().orEmpty().size == 2)
+        client.delete("/conversations/${group.id}/everyone") { bearerAuth(alice.sessionToken) }
+        assertTrue(!folder.exists())
+    }
+
+    @Test
+    fun `pinning messages`() = testApplication {
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient {
+            install(ContentNegotiation) { json(eventJson) }
+            install(WebSockets)
+        }
+        val (alice, bob) = listOf("alice", "bob").map { client.login(it) }
+        client.postJson("/friends/requests", AddFriendRequest("bob"), alice.sessionToken)
+        client.postJson("/friends/requests/${alice.user.id}/accept", Unit, bob.sessionToken)
+        val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
+        val messages = "/conversations/${dm.id}/messages"
+        val sent = (1..4).map { client.postJson(messages, SendMessageRequest("plan $it"), alice.sessionToken).body<MessageDto>() }
+        suspend fun pin(id: Long, hours: Int, session: SessionResponse = bob) = client.postJson("/conversations/${dm.id}/pins", PinRequest(id, hours), session.sessionToken)
+
+        // Only 24 hours, 7 days or 30 days, and only real messages of this chat.
+        assertEquals(HttpStatusCode.BadRequest, pin(sent[0].id, 5).status)
+        assertEquals(HttpStatusCode.BadRequest, pin(9999, 24).status)
+
+        // Bob pins one for a week: it's at the top for both, and the chat says so.
+        val start = System.currentTimeMillis()
+        val pinned = pin(sent[0].id, 168).body<ConversationDto>().pins.single()
+        assertEquals("plan 1" to "bob", pinned.message.body to pinned.pinnedBy.username)
+        assertTrue(pinned.expiresAt - start in (168 * 3_600_000L - 60_000)..(168 * 3_600_000L + 60_000))
+        assertEquals(listOf(sent[0].id), client.getJson<List<ConversationDto>>("/conversations", alice).single().pins.map { it.message.id })
+        val line = client.getJson<List<MessageDto>>(messages, alice).last()
+        assertEquals(Triple("pinned a message", true, sent[0].id), Triple(line.body, line.system, line.replyTo?.id))
+        // A system line can't be pinned.
+        assertEquals(HttpStatusCode.BadRequest, pin(line.id, 24).status)
+
+        // Three at most: a fourth replaces the oldest. Newest first.
+        pin(sent[1].id, 24); pin(sent[2].id, 24)
+        val four = pin(sent[3].id, 720).body<ConversationDto>()
+        assertEquals(listOf(sent[3].id, sent[2].id, sent[1].id), four.pins.map { it.message.id })
+
+        // Alice unpins one: Bob's app hears about it.
+        val bobWs = client.webSocketSession("/ws?token=${bob.sessionToken}")
+        val after = client.delete("/conversations/${dm.id}/pins/${sent[2].id}") { bearerAuth(alice.sessionToken) }.body<ConversationDto>()
+        assertEquals(listOf(sent[3].id, sent[1].id), after.pins.map { it.message.id })
+        var event: Event
+        do event = bobWs.nextEvent() while (event !is ConversationUpdatedEvent)
+        assertEquals(dm.id, event.conversationId)
+    }
+
+    @Test
     fun `liked playlists are saved per person`() = testApplication {
         application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
         val client = createClient { install(ContentNegotiation) { json(eventJson) } }
