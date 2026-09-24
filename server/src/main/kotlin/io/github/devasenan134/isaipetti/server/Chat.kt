@@ -10,7 +10,13 @@ import java.sql.ResultSet
  * A message is text, a shared song, or both. Messages are saved, so history is there
  * when you open the app; people who are online also get them instantly through the [Hub].
  */
-class Chat(private val db: Db, private val friends: Friends, private val hub: Hub, private val groupPictures: PictureFolder) {
+class Chat(
+    private val db: Db,
+    private val friends: Friends,
+    private val hub: Hub,
+    private val groupPictures: PictureFolder,
+    private val dbPath: String,
+) {
     /** Who is listening together in a chat (set once listen-together is running). */
     var listenersOf: (Long) -> List<Long> = { emptyList() }
     var listenOwnerOf: (Long) -> Long? = { null }
@@ -110,9 +116,16 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         expired.forEach { hub.send(members, MessageUpdatedEvent(it)) }
     }
 
-    suspend fun send(me: UserDto, conversationId: Long, request: SendMessageRequest, songRequest: String? = null): MessageDto {
+    suspend fun send(
+        me: UserDto,
+        conversationId: Long,
+        request: SendMessageRequest,
+        songRequest: String? = null,
+        image: ChatImage? = null,
+    ): MessageDto {
         val body = request.body.trim()
-        if (body.isEmpty() && request.song == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
+        if (body.isEmpty() && request.song == null && image == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
+        if (image != null && request.song != null) throw ApiError(HttpStatusCode.BadRequest, "Send the picture and the song separately")
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
         request.song?.let(::checkClip)
         val (message, members, conversation) = db.tx {
@@ -136,9 +149,13 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             }
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
-                "INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                """INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode, reply_to,
+                   image_kind, image_width, image_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 conversationId, me.id, body, songJson, now(), songRequest?.let { "pending" }, songRequest, request.replyTo,
+                image?.kind, image?.width, image?.height,
             )
+            // If saving the file fails, the message isn't sent either.
+            image?.let { imagesOf(conversationId).save(id, it.bytes, it.extension) }
             // A new message brings the chat back for anyone who had deleted it.
             update("UPDATE conversation_members SET hidden = 0 WHERE conversation_id = ?", conversationId)
             // Your own message counts as read.
@@ -183,7 +200,10 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
                WHERE cm.conversation_id = ? AND cm.hidden = 0 AND u.deleted_at IS NULL""",
             conversationId,
         ) { it.getInt(1) } ?: 0
-        if (stillShown == 0) update("DELETE FROM conversations WHERE id = ?", conversationId)
+        if (stillShown == 0) {
+            update("DELETE FROM conversations WHERE id = ?", conversationId)
+            imagesOf(conversationId).removeAll()
+        }
     }
 
     /**
@@ -198,6 +218,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             val remaining = memberIds(conversationId)
             if (remaining.isEmpty()) {
                 update("DELETE FROM conversations WHERE id = ?", conversationId)
+                imagesOf(conversationId).removeAll()
                 return@tx null to emptyList()
             }
             update(
@@ -307,6 +328,78 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         return conversation
     }
 
+    /** The picture of a message, for the chat's members who can see that message; null if it has none. */
+    suspend fun image(userId: Long, conversationId: Long, messageId: Long): java.io.File? {
+        val visible = db.tx {
+            requireMember(conversationId, userId)
+            queryOne(
+                "SELECT 1 FROM messages WHERE id = ? AND conversation_id = ? AND image_kind IS NOT NULL AND id > ?",
+                messageId, conversationId, clearedId(conversationId, userId),
+            ) { true } != null
+        }
+        return if (visible) imagesOf(conversationId).get(messageId) else null
+    }
+
+    /**
+     * Pins a message to the top of the chat for [hours] (24 hours, 7 days or 30 days). Anyone in the
+     * chat can. A chat has at most [MAX_PINS]; pinning another unpins the oldest. Pinning a pinned
+     * message again starts its time over. Everyone sees "… pinned a message".
+     */
+    suspend fun pin(me: UserDto, conversationId: Long, messageId: Long, hours: Int): ConversationDto {
+        if (hours !in PIN_HOURS) throw ApiError(HttpStatusCode.BadRequest, "Pin it for 24 hours, 7 days or 30 days")
+        val (message, members, conversation) = db.tx {
+            requireMember(conversationId, me.id)
+            val ok = queryOne(
+                "SELECT 1 FROM messages WHERE id = ? AND conversation_id = ? AND system = 0 AND id > ?",
+                messageId, conversationId, clearedId(conversationId, me.id),
+            ) { true }
+            if (ok == null) throw ApiError(HttpStatusCode.BadRequest, "That message can't be pinned")
+            val at = now()
+            update("DELETE FROM pins WHERE conversation_id = ? AND (expires_at <= ? OR message_id = ?)", conversationId, at, messageId)
+            update(
+                """DELETE FROM pins WHERE conversation_id = ? AND message_id IN
+                   (SELECT message_id FROM pins WHERE conversation_id = ? ORDER BY pinned_at DESC LIMIT -1 OFFSET ?)""",
+                conversationId, conversationId, MAX_PINS - 1,
+            )
+            update(
+                "INSERT INTO pins (conversation_id, message_id, pinned_by, pinned_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+                conversationId, messageId, me.id, at, at + hours * 3_600_000L,
+            )
+            // The line points at the pinned message (like a reply), so tapping it can jump there.
+            val id = insert(
+                "INSERT INTO messages (conversation_id, sender_id, body, created_at, system, reply_to) VALUES (?, ?, 'pinned a message', ?, 1, ?)",
+                conversationId, me.id, at, messageId,
+            )
+            val line = queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!
+            val cleared = query("SELECT user_id, cleared_id FROM conversation_members WHERE conversation_id = ?", conversationId) {
+                it.getLong(1) to it.getLong(2)
+            }.toMap()
+            Triple(line, cleared, conversation(conversationId, me.id))
+        }
+        members.entries.groupBy({ message.seenAfter(it.value) }, { it.key }).forEach { (copy, ids) -> hub.send(ids, MessageEvent(copy)) }
+        return conversation
+    }
+
+    /** Unpins a message (anyone in the chat can). There's no line about it; the others' apps just refresh the chat. */
+    suspend fun unpin(me: UserDto, conversationId: Long, messageId: Long): ConversationDto {
+        val (members, conversation) = db.tx {
+            requireMember(conversationId, me.id)
+            update("DELETE FROM pins WHERE conversation_id = ? AND message_id = ?", conversationId, messageId)
+            memberIds(conversationId) to conversation(conversationId, me.id)
+        }
+        hub.send(members, ConversationUpdatedEvent(conversationId))
+        return conversation
+    }
+
+    /** Removes the pictures of chats that no longer exist (deleted, or from before a restore). */
+    suspend fun sweepImages() {
+        val root = java.io.File(java.io.File(dbPath).absoluteFile.parentFile, "chat-images")
+        val existing = db.tx { query("SELECT id FROM conversations") { it.getLong(1) }.toSet() }
+        root.listFiles().orEmpty().filter { it.isDirectory && it.name.toLongOrNull() !in existing }.forEach { it.deleteRecursively() }
+    }
+
+    private fun imagesOf(conversationId: Long) = PictureFolder(dbPath, "chat-images/$conversationId")
+
     /** Which members of a chat are online right now (for the member list). */
     suspend fun onlineMembers(userId: Long, conversationId: Long): List<Long> = db.tx {
         requireMember(conversationId, userId)
@@ -328,6 +421,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
             if (owner != me.id) throw ApiError(HttpStatusCode.Forbidden, "Only the group's owner can delete it for everyone")
             memberIds(conversationId).also { update("DELETE FROM conversations WHERE id = ?", conversationId) }
         }
+        imagesOf(conversationId).removeAll()
         onRemoved(conversationId, members)
         hub.send(members, ConversationRemovedEvent(conversationId))
     }
@@ -382,7 +476,31 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         } else {
             others.isNotEmpty()
         }
-        return ConversationDto(id, kind, name, members, last, unread, canMessage, listenersOf(id), listenOwnerOf(id), createdBy = owner, picture = picture)
+        // Pins that haven't run out, of messages this person can see.
+        val pins = query(
+            """SELECT p.pinned_at, p.expires_at, m.id, m.body, m.song_json, m.image_kind,
+                      u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at,
+                      pu.id AS by_id, pu.username AS by_username, pu.display_name AS by_display_name, pu.avatar_at AS by_avatar_at
+               FROM pins p JOIN messages m ON m.id = p.message_id JOIN users u ON u.id = m.sender_id JOIN users pu ON pu.id = p.pinned_by
+               WHERE p.conversation_id = ? AND p.expires_at > ? AND m.id > ? ORDER BY p.pinned_at DESC""",
+            id, now(), cleared,
+        ) {
+            PinDto(
+                message = ReplyDto(
+                    id = it.getLong("id"),
+                    sender = it.toUser(prefix = "sender_"),
+                    body = it.getString("body"),
+                    song = it.getString("song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
+                    imageKind = it.getString("image_kind"),
+                ),
+                pinnedBy = it.toUser(prefix = "by_"),
+                pinnedAt = it.getLong("pinned_at"),
+                expiresAt = it.getLong("expires_at"),
+            )
+        }
+        return ConversationDto(
+            id, kind, name, members, last, unread, canMessage, listenersOf(id), listenOwnerOf(id), createdBy = owner, picture = picture, pins = pins,
+        )
     }
 
     /** Who is in a chat (for listen-together). */
@@ -412,8 +530,10 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
                 sender = toUser(prefix = "reply_sender_"),
                 body = getString("reply_body"),
                 song = getString("reply_song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
+                imageKind = getString("reply_image_kind"),
             )
         },
+        image = getString("image_kind")?.let { ImageDto(it, getInt("image_width"), getInt("image_height")) },
     )
 
     /** How [this] looks to someone whose history starts after message [clearedId]. */
@@ -423,8 +543,11 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
     private companion object {
         /** How many unanswered song requests one listener can have in a chat at once. */
         const val MAX_PENDING_REQUESTS = 3
+        /** How many messages a chat can have pinned at once, and for how long (24 hours, 7 days, 30 days). */
+        const val MAX_PINS = 3
+        val PIN_HOURS = setOf(24, 24 * 7, 24 * 30)
         const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at,
-                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json,
+                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json, r.image_kind AS reply_image_kind,
                 ru.id AS reply_sender_id, ru.username AS reply_sender_username, ru.display_name AS reply_sender_display_name, ru.avatar_at AS reply_sender_avatar_at
             FROM messages m JOIN users u ON u.id = m.sender_id
             LEFT JOIN messages r ON r.id = m.reply_to LEFT JOIN users ru ON ru.id = r.sender_id"""

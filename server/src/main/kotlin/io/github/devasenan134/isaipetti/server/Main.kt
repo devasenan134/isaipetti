@@ -67,7 +67,7 @@ fun Application.isaipettiSocial(
     val hub = Hub(friends::friendIds)
     friends.hub = hub
     val accounts = Accounts(db, navidrome, onFriendsAdded = friends::announceFriendship)
-    val chat = Chat(db, friends, hub, PictureFolder(config.dbPath, "group-pictures"))
+    val chat = Chat(db, friends, hub, PictureFolder(config.dbPath, "group-pictures"), config.dbPath)
     val listen = ListenTogether(hub, chat::members, this, config.listenOwnerGraceMs, config.songRequestCooldownMs)
     chat.listenersOf = listen::listeners
     chat.listenOwnerOf = listen::owner
@@ -95,6 +95,7 @@ fun Application.isaipettiSocial(
         delay(30.seconds)
         while (isActive) {
             runCatching { cleanup.run() }.onFailure { log.warn("Cleanup failed", it) }
+            runCatching { chat.sweepImages() }.onFailure { log.warn("Sweeping chat pictures failed", it) }
             delay(10.minutes)
         }
     }
@@ -119,7 +120,9 @@ fun Application.isaipettiSocial(
     install(createApplicationPlugin("BodySizeLimit") {
         onCall { call ->
             val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-            if (length != null && length > MAX_BODY_BYTES) call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Request is too large"))
+            // Chat pictures can be bigger (a GIF from the keyboard); ChatImage checks them.
+            val limit = if (call.request.local.uri.substringBefore('?').endsWith("/images")) ChatImage.MAX_BYTES + 1024L else MAX_BODY_BYTES
+            if (length != null && length > limit) call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Request is too large"))
         }
     })
     install(Authentication) {
@@ -306,6 +309,28 @@ fun Application.isaipettiSocial(
                     call.respond(chat.messages(call.me().id, call.longParam("id"), before, limit))
                 }
                 post("/{id}/messages") { call.respond(chat.send(call.me(), call.longParam("id"), call.receive())) }
+                // A photo, GIF or sticker: the picture is the body; what it is, its size, caption and reply go in the address.
+                post("/{id}/images") {
+                    val q = call.request.queryParameters
+                    val image = ChatImage(
+                        call.receive<ByteArray>(), q["kind"].orEmpty(), q["width"]?.toIntOrNull() ?: 0, q["height"]?.toIntOrNull() ?: 0,
+                    )
+                    val request = SendMessageRequest(q["caption"].orEmpty(), replyTo = q["replyTo"]?.toLongOrNull())
+                    call.respond(chat.send(call.me(), call.longParam("id"), request, image = image))
+                }
+                get("/{id}/messages/{messageId}/image") {
+                    val file = chat.image(call.me().id, call.longParam("id"), call.longParam("messageId"))
+                        ?: throw ApiError(HttpStatusCode.NotFound, "No picture")
+                    // A message's picture never changes.
+                    call.response.headers.append(HttpHeaders.CacheControl, "private, max-age=31536000, immutable")
+                    call.respondFile(file)
+                }
+                // Pinned messages: anyone in the chat pins one for 24 hours, 7 days or 30 days, or unpins it.
+                post("/{id}/pins") {
+                    val request = call.receive<PinRequest>()
+                    call.respond(chat.pin(call.me(), call.longParam("id"), request.messageId, request.hours))
+                }
+                delete("/{id}/pins/{messageId}") { call.respond(chat.unpin(call.me(), call.longParam("id"), call.longParam("messageId"))) }
                 delete("/{id}") {
                     chat.delete(call.me().id, call.longParam("id"))
                     call.respond(HttpStatusCode.NoContent)

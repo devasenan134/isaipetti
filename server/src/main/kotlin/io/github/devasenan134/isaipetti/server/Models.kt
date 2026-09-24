@@ -75,7 +75,19 @@ data class MessageDto(
     val requestMode: String? = null,
     /** The message this one replies to, quoted. */
     val replyTo: ReplyDto? = null,
+    /** A photo, GIF or sticker (GET /conversations/{id}/messages/{messageId}/image); [body] is its caption. */
+    val image: ImageDto? = null,
 )
+
+/** A picture in a message: [kind] is "photo", "gif" or "sticker"; its size in pixels lets the app make room before it loads. */
+@Serializable
+data class ImageDto(val kind: String, val width: Int, val height: Int)
+
+/** A pinned message of a chat, shown at the top of it until [expiresAt]. */
+@Serializable
+data class PinDto(val message: ReplyDto, val pinnedBy: UserDto, val pinnedAt: Long, val expiresAt: Long)
+
+@Serializable data class PinRequest(val messageId: Long, val hours: Int)
 
 /**
  * The message a reply quotes. [hidden] when it's from before the viewer joined the group (or
@@ -88,6 +100,8 @@ data class ReplyDto(
     val body: String = "",
     val song: SongRef? = null,
     val hidden: Boolean = false,
+    /** Set when it's a picture: "photo", "gif" or "sticker". */
+    val imageKind: String? = null,
 )
 
 @Serializable
@@ -108,6 +122,8 @@ data class ConversationDto(
     val createdBy: Long? = null,
     /** When the group's photo was set (a version for GET /conversations/{id}/picture), or null for none. */
     val picture: Long? = null,
+    /** Pinned messages that haven't expired, newest first. */
+    val pins: List<PinDto> = emptyList(),
 )
 
 @Serializable data class NewDmRequest(val userId: Long)
