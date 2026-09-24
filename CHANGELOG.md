@@ -7,6 +7,13 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.15 (2026-09-24): Jam buttons stay put
+
+### Fixed
+- **The chat's buttons no longer jump left during a jam.** With "Jamming with …" next to the chat's name, the queue and jam buttons stay at the right edge, where they are without a jam.
+
+---
+
 ## 0.6.14 (2026-09-24): One jam button
 
 ### Improved
