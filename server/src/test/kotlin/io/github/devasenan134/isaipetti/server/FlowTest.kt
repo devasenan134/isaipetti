@@ -256,7 +256,8 @@ class FlowTest {
     @Test
     fun `listen together`() = testApplication {
         val push = FakePush()
-        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome(), push) }
+        // A short wait for an owner who drops offline, so the test doesn't take a minute.
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", "", listenOwnerGraceMs = 500), FakeNavidrome(), push) }
         val client = createClient {
             install(ContentNegotiation) { json(eventJson) }
             install(WebSockets)
@@ -267,7 +268,7 @@ class FlowTest {
             client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
         }
         val dm = client.postJson("/conversations/dm", NewDmRequest(bob.user.id), alice.sessionToken).body<ConversationDto>()
-        val aliceWs = client.webSocketSession("/ws?token=${alice.sessionToken}")
+        var aliceWs = client.webSocketSession("/ws?token=${alice.sessionToken}")
         val bobWs = client.webSocketSession("/ws?token=${bob.sessionToken}")
         val carolWs = client.webSocketSession("/ws?token=${carol.sessionToken}")
         eventually { client.friends(alice).count { it.online } == 2 }
@@ -277,16 +278,18 @@ class FlowTest {
             while (true) nextEvent().let { if (match(it)) return it }
         }
 
-        // Alice starts listening together in her DM with Bob; Bob sees the session in the chat, and since
-        // he doesn't have the app on screen, he also gets a notification.
+        // Alice starts listening together in her DM with Bob, so she owns the session. Bob sees it in the
+        // chat, and since he doesn't have the app on screen, he also gets a notification.
         client.postJson("/devices", DeviceRequest("phone-bob"), bob.sessionToken)
         val queue = listOf(SongRef("s1", "Uyire"), SongRef("s2", "Malargale"))
         aliceWs.sendEvent(ListenStart(dm.id, ListenState(queue, "q1", index = 0, positionMs = 12_000, playing = true)))
-        assertEquals(listOf(alice.user.id), (bobWs.next { it is ListenSessionEvent } as ListenSessionEvent).listeners)
+        val session = bobWs.next { it is ListenSessionEvent } as ListenSessionEvent
+        assertEquals(listOf(alice.user.id) to alice.user.id, session.listeners to session.owner)
         eventually { push.sent.isNotEmpty() }
         val note = push.sent.single().second
         assertEquals(listOf("listen", dm.id.toString(), "alice"), listOf(note["type"], note["conversationId"], note["title"]))
-        assertEquals(listOf(alice.user.id), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
+        val bobsView = client.getJson<List<ConversationDto>>("/conversations", bob).single()
+        assertEquals(listOf(alice.user.id) to alice.user.id, bobsView.listeners to bobsView.listenOwner)
 
         // Carol isn't in the chat, so she can't join. Bob joins and gets the whole queue.
         carolWs.sendEvent(ListenJoin(dm.id))
@@ -295,24 +298,60 @@ class FlowTest {
         assertEquals(queue to 0, joined.state.queue to joined.state.index)
         assertEquals(setOf(alice.user.id, bob.user.id), client.getJson<List<ConversationDto>>("/conversations", alice).single().listeners.toSet())
 
-        // Bob skips to the next song; Alice is told (without the queue, which didn't change).
+        // Only the owner controls the music: Bob trying to skip changes nothing; Alice skipping reaches Bob.
         bobWs.sendEvent(ListenUpdate(dm.id, ListenState(queueId = "q1", index = 1, positionMs = 0, playing = true)))
-        val skipped = aliceWs.next { it is ListenStateEvent && it.by == bob.user.id } as ListenStateEvent
-        assertEquals(Triple(bob.user.id, 1, null), Triple(skipped.by, skipped.state.index, skipped.state.queue))
-        // An update for a queue the session doesn't have is ignored.
-        bobWs.sendEvent(ListenUpdate(dm.id, ListenState(queueId = "old", index = 5, positionMs = 0, playing = true)))
+        aliceWs.sendEvent(ListenUpdate(dm.id, ListenState(queueId = "q1", index = 1, positionMs = 5_000, playing = false)))
+        val skipped = bobWs.next { it is ListenStateEvent } as ListenStateEvent
+        assertEquals(Triple(alice.user.id, 1, 5_000L), Triple(skipped.by, skipped.state.index, skipped.state.positionMs))
 
-        // Alice goes offline: Bob is the only listener left. When he leaves, the session ends.
+        // Bob asks for a song instead. It shows in the chat as a pending request.
+        val wanted = SongRef("s3", "Munbe Vaa")
+        val request = client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(wanted), bob.sessionToken).body<MessageDto>()
+        assertEquals(wanted to "pending", request.song to request.request)
+        assertEquals(request.id, (aliceWs.next { it is MessageEvent } as MessageEvent).message.id)
+        // The owner doesn't request (she adds songs herself), and only she can answer.
+        assertEquals(HttpStatusCode.BadRequest, client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(wanted), alice.sessionToken).status)
+        val answer = "/conversations/${dm.id}/listen/requests/${request.id}"
+        assertEquals(HttpStatusCode.Forbidden, client.postJson(answer, SongRequestAnswer(accept = true), bob.sessionToken).status)
+        assertEquals("accepted", client.postJson(answer, SongRequestAnswer(accept = true), alice.sessionToken).body<MessageDto>().request)
+        assertEquals("accepted", (bobWs.next { it is MessageUpdatedEvent } as MessageUpdatedEvent).message.request)
+        assertEquals(HttpStatusCode.Conflict, client.postJson(answer, SongRequestAnswer(accept = false), alice.sessionToken).status)
+        assertEquals("accepted", client.getJson<List<MessageDto>>("/conversations/${dm.id}/messages", bob).last().request)
+
+        // Alice's connection drops, but she's back within the grace period: the session carries on.
         aliceWs.close()
-        bobWs.next { it is ListenSessionEvent && it.listeners == listOf(bob.user.id) }
-        bobWs.sendEvent(ListenLeave(dm.id))
-        bobWs.next { it is ListenSessionEvent && it.listeners.isEmpty() }
-        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
+        eventually { client.friends(bob).none { it.online } }
+        aliceWs = client.webSocketSession("/ws?token=${alice.sessionToken}")
+        aliceWs.sendEvent(ListenStart(dm.id, ListenState(queue, "other", index = 0, positionMs = 0, playing = true)))
+        val resumed = aliceWs.next { it is ListenStateEvent } as ListenStateEvent
+        assertEquals("q1" to 1, resumed.state.queueId to resumed.state.index) // the session's state, not a new one
+        kotlinx.coroutines.delay(800)
+        assertEquals(alice.user.id, client.getJson<List<ConversationDto>>("/conversations", bob).single().listenOwner)
 
-        // Starting again right away doesn't notify again (at most once every 30 minutes per chat).
+        // Bob asks for another song, but Alice doesn't answer before leaving.
+        val unanswered = client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(SongRef("s4", "Vennilave")), bob.sessionToken)
+            .body<MessageDto>()
+
+        // This time she stays away longer: the session ends for Bob too, and his request expires.
+        aliceWs.close()
+        bobWs.next { it is ListenSessionEvent && it.listeners.isEmpty() }
+        val expired = (bobWs.next { it is MessageUpdatedEvent } as MessageUpdatedEvent).message
+        assertEquals(unanswered.id to "expired", expired.id to expired.request)
+        assertEquals(emptyList(), client.getJson<List<ConversationDto>>("/conversations", bob).single().listeners)
+        // With no session, there's nobody to request a song from.
+        assertEquals(HttpStatusCode.Conflict, client.postJson("/conversations/${dm.id}/listen/requests", SongRequestBody(wanted), bob.sessionToken).status)
+
+        // Bob starts one (now he's the owner). Starting again right away doesn't notify again.
         bobWs.sendEvent(ListenStart(dm.id, ListenState(queue, "q2", index = 0, positionMs = 0, playing = true)))
-        bobWs.next { it is ListenSessionEvent && it.listeners == listOf(bob.user.id) }
+        val bobsSession = bobWs.next { it is ListenSessionEvent && it.listeners == listOf(bob.user.id) } as ListenSessionEvent
+        assertEquals(bob.user.id, bobsSession.owner)
         assertEquals(1, push.sent.size)
+        // When the owner leaves, the session ends at once, even if others are still in it.
+        aliceWs = client.webSocketSession("/ws?token=${alice.sessionToken}")
+        aliceWs.sendEvent(ListenJoin(dm.id))
+        bobWs.next { it is ListenSessionEvent && it.listeners.size == 2 }
+        bobWs.sendEvent(ListenLeave(dm.id))
+        aliceWs.next { it is ListenSessionEvent && it.listeners.isEmpty() }
     }
 
     @Test

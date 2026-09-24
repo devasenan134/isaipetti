@@ -69,6 +69,8 @@ data class MessageDto(
     val createdAt: Long,
     /** A line about the chat itself ("left the group"), from [sender]. */
     val system: Boolean = false,
+    /** For a song request in a listening session: "pending", "accepted", "declined" or "expired" (the session ended first). */
+    val request: String? = null,
 )
 
 @Serializable
@@ -83,6 +85,8 @@ data class ConversationDto(
     val canMessage: Boolean = true,
     /** Who is listening together in this chat right now (empty if nobody). */
     val listeners: List<Long> = emptyList(),
+    /** Who started (and controls) the listening session, if there is one. */
+    val listenOwner: Long? = null,
     /** The group's owner: the only one who can delete it for everyone. */
     val createdBy: Long? = null,
     /** When the group's photo was set (a version for GET /conversations/{id}/picture), or null for none. */
