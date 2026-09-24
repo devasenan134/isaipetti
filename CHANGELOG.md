@@ -7,6 +7,23 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.5 (2026-09-24): Lyrics under the cover, a song waveform for clips
+
+### New
+- **The lyric being sung, under the cover.** When a song has synced lyrics, the current line shows between the cover and the title and slides up as the song moves on. Tap it to see all the lyrics.
+- **See the song when you share a part of it.** "Share only a part" shows the song's waveform, like Instagram's music picker: the part you chose is in colour, the rest is faded. The first time for a song takes a few seconds; after that it shows at once.
+- **A pointer on the waveform.** Tap or drag the small pointer above the waveform to anywhere in the song. **Start here** and **End here** use it, and it follows the preview while it plays.
+
+### Improved
+- **Every singer's name.** When the singers don't fit under the song title in the player, the line scrolls sideways so every name shows.
+- **Previews leave your music alone.** Preview plays on its own, so it no longer changes your queue. Your music pauses for it and carries on afterwards. While listening together, Preview is off until the music is paused, and it never changes what the others hear.
+- **"Artists" instead of "Singers"** in song details, the search box and Home.
+
+### Server
+- Home rows are now **This is: artists** and **Composer and artist stations**.
+
+---
+
 ## 0.6.4 (2026-09-24): Graphite & mango, appearance settings and new tile art
 
 ### New
