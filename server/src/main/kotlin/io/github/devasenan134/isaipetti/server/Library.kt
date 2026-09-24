@@ -36,6 +36,8 @@ data class LibrarySong(
     val genre: String,
     val addedAt: Long,
     val karaoke: Boolean,
+    /** Who wrote the words. */
+    val lyricists: List<Person> = emptyList(),
 ) {
     val coverArt get() = "al-$albumId"
 }
@@ -244,6 +246,7 @@ class NavidromeLibrary(private val navidromeDb: String, private val featuresDb: 
             genre = genre,
             addedAt = parseTime(rs.getString("created_at")) ?: 0,
             karaoke = genre.equals("Karaoke", true) || path.startsWith("Karaoke/") || composerName.equals("Karaoke", true),
+            lyricists = people("lyricist").filterNot { it.name.startsWith("[Unknown") },
         )
     }
 

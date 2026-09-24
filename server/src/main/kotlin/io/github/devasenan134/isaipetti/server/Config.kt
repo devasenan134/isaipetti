@@ -20,6 +20,8 @@ data class Config(
     val navidromeDb: String? = null,
     /** The audio analyzer's features.db. Without it, mixes use only tags and listening (no moods). */
     val featuresDb: String? = null,
+    /** Who acted in each movie (JSON lines from the library tools' cast.py), for search by actor. Optional. */
+    val castFile: String? = null,
     /** Where "today" is for Daily Mixes and when Discover Weekly changes. */
     val timeZone: String = "Asia/Kolkata",
 ) {
@@ -39,6 +41,7 @@ data class Config(
                 githubToken = System.getenv("GITHUB_TOKEN")?.takeIf { it.isNotBlank() },
                 navidromeDb = System.getenv("NAVIDROME_DB")?.takeIf { File(it).isFile },
                 featuresDb = System.getenv("FEATURES_DB")?.takeIf { it.isNotBlank() },
+                castFile = System.getenv("CAST_FILE")?.takeIf { it.isNotBlank() },
                 timeZone = env("MIX_TIMEZONE", "Asia/Kolkata"),
             )
         }
