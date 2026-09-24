@@ -7,6 +7,14 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.17 (2026-09-24): The player keeps up, and closing the app stops the music
+
+### Fixed
+- **The player no longer gets stuck on an old song.** If the song changed while the app was in the background (Next or Previous in the notification, or a song ending on its own), the mini player and the full player now show the right song when you come back. Before, they showed the song from when you left until you swiped through the queue.
+- **Closing the app stops the music.** Pressing Back on the app's first screen, or swiping the app away from your recent apps, now stops playback and removes the notification. Pressing Home still leaves the music playing.
+
+---
+
 ## 0.6.16 (2026-09-24): Group menu on the right
 
 ### Improved
