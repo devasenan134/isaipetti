@@ -12,7 +12,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 ### Improved
 - **Mixes don't jumble languages anymore.** Before, a mix was picked mostly by how songs sound, so a Tamil kuthu song could be followed by any loud English dance track. Now every song has a language (from its tags, its movie, its composer and singers, and its sound), and mixes use it the way you listen:
   - **Mixes about a feeling** (Sad, Feel Good, Party, Chill, Romance, Workout, Focus, Sleep), Discover Weekly and the decade mixes have the languages you listen to, about as much of each as you play them. If you play some English songs, your Sad Songs can have some sad English songs too.
-  - **Mixes about a music culture stay in one language:** Kuthu Mix and the new **Kollywood Mass** are Tamil; Melody, Retro, Carnatic Touch and Devotional are in your main language.
+  - **Mixes about a music culture stay in one language:** Kuthu Mix and the new **Kollywood Mass** are Tamil, and only take songs that sound like Indian film music (a Western-style song from a Tamil film doesn't belong with thappu drums); Melody, Retro, Carnatic Touch and Devotional are in your main language.
   - **Daily Mixes, stations and "This Is" mixes** stay in the language of the songs or person they're made from. If you like English songs, they get a Daily Mix of their own.
   - A language you (almost) never play doesn't turn up in your mixes, Top 50, New Arrivals or Friends Mix.
 - **Songs people play together come up together.** Mixes, stations and playlist suggestions now also look at which songs people here play one after another, and which songs share a playlist. That's what streaming services lean on most, and it knows what belongs together better than the sound alone.
