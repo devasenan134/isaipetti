@@ -30,6 +30,9 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
+### Server update: better mood mixes, composer and singer mixes
+- Chill, Sleep and Focus share no songs and check measured loudness and rhythm; composer and singer mixes have only their songs
+
 ### 0.6.1: Pictures, invites, page colours and a bigger look
 - Profile pictures, group photos and playlist covers (take a photo or choose one)
 - Your invites: copy, share again or delete unused codes; see who joined
@@ -193,7 +196,7 @@ Small tasks, cleanup and chores.
 - [x] Deploy the server update (listen together, clips, deleting chats, push settings)
 - [x] Create a release signing key (kept outside the repository)
 - [ ] Back up the release key and its password somewhere safe, e.g. Vaultwarden
-- [ ] Watch the analyzer's first full run and check the mood mixes with real listening (`./gradlew previewMixes`)
+- [x] Watch the analyzer's first full run and check the mood mixes with real listening (`./gradlew previewMixes`)
 - [ ] Create a fine-grained GitHub token (this repo only, Issues: read and write) and put it in the server's `.env` as `GITHUB_TOKEN`
 - [x] Remove `google-services.json`, the server addresses and the personal email from the git history
 - [x] New Firebase project with app ID `io.github.devasenan134.isaipetti`; its files live only on the friends server

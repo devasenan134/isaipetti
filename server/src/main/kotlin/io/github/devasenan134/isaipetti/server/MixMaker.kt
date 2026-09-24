@@ -316,6 +316,16 @@ class MixMaker(
         /** + for loud and fast songs, - for quiet and slow ones. */
         val energy: Float = 0f,
         val color: String,
+        /** Songs louder than this (z-score) are left out; songs whose loudness is unknown too. */
+        val maxEnergy: Float? = null,
+        /** Songs with punchier beats than this (z-score) are left out. */
+        val maxRhythm: Float? = null,
+        /** Descriptions a song must fit at least this well (z-score), e.g. Focus needs "instrumental". */
+        val requires: Map<String, Float> = emptyMap(),
+        /** Descriptions a song may fit at most this well, e.g. calm moods leave out party songs. */
+        val vetoes: Map<String, Float> = emptyMap(),
+        /** Moods in the same group share no songs: each song goes to the one it fits best. */
+        val group: String? = null,
     )
 
     fun mood(mood: Mood): MixDto? {
@@ -328,17 +338,34 @@ class MixMaker(
         )
     }
 
+    private val energyZ by lazy { zScores(lib.energy) }
+    private val rhythmZ by lazy { zScores(lib.rhythm) }
+
+    /** How well each song fits [mood] (NaN if it can't be in it at all), before the cut-off. */
+    private fun moodFit(mood: Mood, i: Int): Float {
+        if (!eligible(i) || lib.sound[i] == null) return Float.NaN
+        if (mood.requires.any { (key, min) -> (lib.moods[key]?.get(i) ?: Float.NaN).let { it.isNaN() || it < min } }) return Float.NaN
+        if (mood.vetoes.any { (key, max) -> (lib.moods[key]?.get(i) ?: 0f) > max }) return Float.NaN
+        val energy = energyZ[i]
+        if (mood.maxEnergy != null && (energy.isNaN() || energy > mood.maxEnergy)) return Float.NaN
+        if (mood.maxRhythm != null && (rhythmZ[i].isNaN() || rhythmZ[i] > mood.maxRhythm)) return Float.NaN
+        val total = mood.parts.values.sum()
+        var s = mood.parts.entries.sumOf { (key, w) -> (lib.moods.getValue(key)[i] * w).toDouble() }.toFloat() / total
+        if (mood.energy != 0f && !energy.isNaN()) s += 0.5f * mood.energy * energy
+        return s
+    }
+
     /** Songs that clearly have this mood, with how strongly; null if the library wasn't analyzed or has too few. */
     private fun moodMembers(mood: Mood): Map<Int, Float>? {
-        if (!lib.hasSound || mood.parts.keys.any { it !in lib.moods }) return null
-        val energy = if (mood.energy != 0f) zScores(lib.energy) else null
-        val total = mood.parts.values.sum()
+        if (!lib.hasSound || (mood.parts.keys + mood.requires.keys).any { it !in lib.moods }) return null
+        val rivals = MOODS.filter { it.group != null && it.group == mood.group && it != mood && (it.parts.keys + it.requires.keys).all { k -> k in lib.moods } }
         val members = buildMap {
             for (i in 0 until n) {
-                if (!eligible(i) || lib.sound[i] == null) continue
-                var s = mood.parts.entries.sumOf { (key, w) -> (lib.moods.getValue(key)[i] * w).toDouble() }.toFloat() / total
-                energy?.get(i)?.takeIf { !it.isNaN() }?.let { s += 0.5f * mood.energy * it }
-                if (s >= 1.0f) put(i, s)
+                val s = moodFit(mood, i)
+                if (s.isNaN() || s < 1.0f) continue
+                // In a group (Chill, Sleep, Focus), only the mood it fits best gets it.
+                if (rivals.any { r -> moodFit(r, i).let { !it.isNaN() && it >= 1.0f && it > s } }) continue
+                put(i, s)
             }
         }
         return members.takeIf { it.size >= 20 }
@@ -380,20 +407,21 @@ class MixMaker(
         return picked.filter { (source[it]?.size ?: 0) >= 8 }.mapNotNull { lib.people[it] }.take(count)
     }
 
-    /** Their best songs, mixed with others that sound like them. */
+    /**
+     * Only their songs: the ones that suit you and the most played first, with a fresh selection each day.
+     * (Music that sounds like theirs is what their station is for.)
+     */
     fun personMix(person: Person, composer: Boolean): MixDto? {
         val theirs = (if (composer) lib.byComposer[person.id] else lib.bySinger[person.id]).orEmpty().filter(::eligible)
         if (theirs.size < 5) return null
         val random = Random(personSeed * 5 + today.toEpochDay() + person.id.hashCode())
-        val own = pick(theirs.associateWith { 0.5f * affinity[it] + 0.5f * ln(1.0 + (popularity[it] ?: 0)).toFloat() }, 30, random, pool = 80)
-        val scores = similarTo(theirs)
-        for (i in 0 until n) scores[i] += 0.2f * affinity[i]
-        val others = pick(scores, 50 - own.size, random, pool = 150, exclude = theirs.toSet())
-        val list = interleave(own, others, fromA = 2, fromB = 1) // mostly theirs, theirs first
+        val scores = theirs.associateWith { 0.5f * affinity[it] + 0.5f * ln(1.0 + (popularity[it] ?: 0)).toFloat() }
+        val list = pick(scores, 50, random, pool = 120, maxPerAlbum = 3, maxPerPerson = 50)
         return mix(
             "${if (composer) "composer" else "singer"}-${person.id}", if (composer) "composer" else "singer", "${person.name} Mix", list,
             refresh = "daily", subtitle = namesIn(list, first = person.name), covers = listOf("ar-${person.id}"), round = true,
-            description = "${person.name} and music like theirs. Updates every day.",
+            description = "Songs ${if (composer) "composed" else "sung"} by ${person.name}${if (hasTaste) ", the ones that suit you first" else ""}. " +
+                "For music like theirs, try ${person.name} Radio. Updates every day.",
         )
     }
 
@@ -642,7 +670,10 @@ class MixMaker(
         const val DAY = 24 * 60 * 60 * 1000L
 
         val MOODS = listOf(
-            Mood("chill", "Chill Mix", "Calm, soft and easy", mapOf("chill" to 1f, "melody" to 0.5f), energy = -1f, color = "#3B6E8F"),
+            Mood(
+                "chill", "Chill Mix", "Calm, soft and easy", mapOf("chill" to 1f, "melody" to 0.5f), energy = -1f, color = "#3B6E8F",
+                maxEnergy = 0.3f, maxRhythm = 0.3f, vetoes = mapOf("party" to 1.0f), group = "calm",
+            ),
             Mood("romance", "Romance Mix", "Love songs and duets", mapOf("romantic" to 1f, "melody" to 0.4f), color = "#B03A5B"),
             Mood("happy", "Feel Good Mix", "Bright, happy songs", mapOf("happy" to 1f), energy = 0.3f, color = "#E0A21B"),
             Mood("party", "Party Mix", "Loud, fast, made for dancing", mapOf("party" to 1f, "kuthu" to 0.5f), energy = 1f, color = "#D2462D"),
@@ -652,8 +683,14 @@ class MixMaker(
             Mood("workout", "Workout Mix", "Big energy to keep you moving", mapOf("heroic" to 1f, "party" to 0.5f), energy = 1f, color = "#8C2F39"),
             Mood("devotional", "Devotional", "Bhakti songs and hymns", mapOf("devotional" to 1f), color = "#B5651D"),
             Mood("classical", "Carnatic Touch", "Songs with a classical soul", mapOf("classical" to 1f), color = "#6D4C8F"),
-            Mood("focus", "Focus", "Mostly instrumental, easy to work to", mapOf("instrumental" to 1f, "chill" to 0.4f), energy = -0.5f, color = "#2F6B6B"),
-            Mood("sleep", "Sleep", "Lullabies and quiet songs", mapOf("lullaby" to 1f, "chill" to 0.7f), energy = -1f, color = "#28335C"),
+            Mood(
+                "focus", "Focus", "Mostly instrumental, easy to work to", mapOf("instrumental" to 1f, "chill" to 0.4f), energy = -0.5f, color = "#2F6B6B",
+                maxRhythm = 0.5f, requires = mapOf("instrumental" to 1.5f), vetoes = mapOf("party" to 1.5f), group = "calm",
+            ),
+            Mood(
+                "sleep", "Sleep", "Lullabies and quiet songs", mapOf("lullaby" to 1f, "chill" to 0.7f), energy = -1f, color = "#28335C",
+                maxEnergy = -0.2f, maxRhythm = -0.3f, vetoes = mapOf("party" to 0.5f), group = "calm",
+            ),
             Mood("retro", "Retro Mix", "Old-school sound", mapOf("retro" to 1f), color = "#8A6A3B"),
         )
 
