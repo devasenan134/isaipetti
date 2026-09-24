@@ -261,6 +261,10 @@ class MixApiTest {
         }.body<MixDto>()
         assertEquals(10, station.songs.size)
 
+        // A station opened from Home comes with songs, not just its name.
+        val homeStation = summaries.first { it.endless }
+        assertTrue(client.get("/mixes/${homeStation.id}") { bearerAuth(token) }.body<MixDto>().songs.isNotEmpty())
+
         val recommended = client.post("/mixes/recommend") {
             bearerAuth(token); contentType(ContentType.Application.Json); setBody(RecommendRequest(listOf("song1", "song2"), count = 5))
         }.body<List<MixSong>>()
