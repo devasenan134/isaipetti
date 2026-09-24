@@ -122,10 +122,12 @@ class Chat(
         request: SendMessageRequest,
         songRequest: String? = null,
         image: ChatImage? = null,
+        voice: VoiceNote? = null,
+        forwarded: Boolean = false,
     ): MessageDto {
         val body = request.body.trim()
-        if (body.isEmpty() && request.song == null && image == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
-        if (image != null && request.song != null) throw ApiError(HttpStatusCode.BadRequest, "Send the picture and the song separately")
+        if (body.isEmpty() && request.song == null && image == null && voice == null) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
+        if (listOfNotNull(image, request.song, voice).size > 1) throw ApiError(HttpStatusCode.BadRequest, "Send the picture, song or recording separately")
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
         request.song?.let(::checkClip)
         val (message, members, conversation) = db.tx {
@@ -150,12 +152,13 @@ class Chat(
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
                 """INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode, reply_to,
-                   image_kind, image_width, image_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   image_kind, image_width, image_height, voice_ms, forwarded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 conversationId, me.id, body, songJson, now(), songRequest?.let { "pending" }, songRequest, request.replyTo,
-                image?.kind, image?.width, image?.height,
+                image?.kind, image?.width, image?.height, voice?.durationMs, if (forwarded) 1 else 0,
             )
             // If saving the file fails, the message isn't sent either.
             image?.let { imagesOf(conversationId).save(id, it.bytes, it.extension) }
+            voice?.let { voicesOf(conversationId).save(id, it.bytes, "m4a") }
             // A new message brings the chat back for anyone who had deleted it.
             update("UPDATE conversation_members SET hidden = 0 WHERE conversation_id = ?", conversationId)
             // Your own message counts as read.
@@ -214,12 +217,13 @@ class Chat(
             ownMessage(me, conversationId, messageId, "delete")
             update(
                 """UPDATE messages SET body = '', song_json = NULL, image_kind = NULL, image_width = NULL, image_height = NULL,
-                   request = NULL, request_mode = NULL, reply_to = NULL, deleted_at = ? WHERE id = ?""",
+                   voice_ms = NULL, request = NULL, request_mode = NULL, reply_to = NULL, deleted_at = ? WHERE id = ?""",
                 now(), messageId,
             )
             update("DELETE FROM pins WHERE message_id = ?", messageId)
             update("DELETE FROM reactions WHERE message_id = ?", messageId)
             imagesOf(conversationId).remove(messageId)
+            voicesOf(conversationId).remove(messageId)
         }
         // Pins and chat lists changed as well.
         hub.send(db.tx { memberIds(conversationId) }, ConversationUpdatedEvent(conversationId))
@@ -264,7 +268,8 @@ class Chat(
     private fun Connection.ownMessage(me: UserDto, conversationId: Long, messageId: Long, verb: String): Boolean {
         requireMember(conversationId, me.id)
         val row = queryOne(
-            "SELECT sender_id, system, request, deleted_at, song_json IS NOT NULL OR image_kind IS NOT NULL FROM messages WHERE id = ? AND conversation_id = ?",
+            """SELECT sender_id, system, request, deleted_at, song_json IS NOT NULL OR image_kind IS NOT NULL OR voice_ms IS NOT NULL
+               FROM messages WHERE id = ? AND conversation_id = ?""",
             messageId, conversationId,
         ) { Triple(it.getLong(1), it.getInt(2) == 1 || it.getString(3) != null || it.getObject(4) != null, it.getInt(5) == 1) }
             ?: throw ApiError(HttpStatusCode.NotFound, "Message not found")
@@ -295,7 +300,7 @@ class Chat(
         ) { it.getInt(1) } ?: 0
         if (stillShown == 0) {
             update("DELETE FROM conversations WHERE id = ?", conversationId)
-            imagesOf(conversationId).removeAll()
+            removeFiles(conversationId)
         }
     }
 
@@ -311,7 +316,7 @@ class Chat(
             val remaining = memberIds(conversationId)
             if (remaining.isEmpty()) {
                 update("DELETE FROM conversations WHERE id = ?", conversationId)
-                imagesOf(conversationId).removeAll()
+                removeFiles(conversationId)
                 return@tx null to emptyList()
             }
             update(
@@ -482,14 +487,98 @@ class Chat(
         return conversation
     }
 
-    /** Removes the pictures of chats that no longer exist (deleted, or from before a restore). */
+    /** The recording of a voice message, for the chat's members who can see that message. */
+    suspend fun voice(userId: Long, conversationId: Long, messageId: Long): java.io.File? {
+        val visible = db.tx {
+            requireMember(conversationId, userId)
+            queryOne(
+                "SELECT 1 FROM messages WHERE id = ? AND conversation_id = ? AND voice_ms IS NOT NULL AND id > ?",
+                messageId, conversationId, clearedId(conversationId, userId),
+            ) { true } != null
+        }
+        return if (visible) voicesOf(conversationId).get(messageId) else null
+    }
+
+    /**
+     * Forwards a message you can see to up to [MAX_FORWARD] chats of yours: its text, song, picture or
+     * recording is sent there by you, marked "Forwarded". Returns the new messages.
+     */
+    suspend fun forward(me: UserDto, fromId: Long, messageId: Long, to: List<Long>): List<MessageDto> {
+        val targets = to.distinct()
+        if (targets.isEmpty() || targets.size > MAX_FORWARD) throw ApiError(HttpStatusCode.BadRequest, "Pick 1 to $MAX_FORWARD chats")
+        val original = db.tx {
+            requireMember(fromId, me.id)
+            queryOne(
+                "SELECT * FROM messages WHERE id = ? AND conversation_id = ? AND system = 0 AND deleted_at IS NULL AND id > ?",
+                messageId, fromId, clearedId(fromId, me.id),
+            ) {
+                Forwardable(
+                    body = it.getString("body"),
+                    song = it.getString("song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
+                    imageKind = it.getString("image_kind"),
+                    imageWidth = it.getInt("image_width"),
+                    imageHeight = it.getInt("image_height"),
+                    voiceMs = it.getObject("voice_ms")?.let { ms -> (ms as Number).toLong() },
+                )
+            } ?: throw ApiError(HttpStatusCode.BadRequest, "That message can't be forwarded")
+        }
+        // Check every chat first, so it's forwarded everywhere or nowhere.
+        db.tx { targets.forEach { requireMember(it, me.id) } }
+        val image = original.imageKind?.let { kind ->
+            val file = imagesOf(fromId).get(messageId) ?: throw ApiError(HttpStatusCode.Gone, "The picture is gone")
+            ChatImage(file.readBytes(), kind, original.imageWidth, original.imageHeight)
+        }
+        val voice = original.voiceMs?.let { ms ->
+            val file = voicesOf(fromId).get(messageId) ?: throw ApiError(HttpStatusCode.Gone, "The recording is gone")
+            VoiceNote(file.readBytes(), ms)
+        }
+        return targets.map { target ->
+            send(me, target, SendMessageRequest(original.body, original.song), image = image, voice = voice, forwarded = true)
+        }
+    }
+
+    private class Forwardable(
+        val body: String, val song: SongRef?, val imageKind: String?, val imageWidth: Int, val imageHeight: Int, val voiceMs: Long?,
+    )
+
+    /**
+     * Messages of a chat whose text, or shared song's title or artist, contains [text] (ignoring case
+     * for English letters), newest first, at most 50. Only what you can see, not deleted ones.
+     */
+    suspend fun search(userId: Long, conversationId: Long, text: String): List<MessageDto> {
+        val q = text.trim()
+        if (q.isEmpty() || q.length > 100) throw ApiError(HttpStatusCode.BadRequest, "Type something to search for")
+        val like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        return db.tx {
+            requireMember(conversationId, userId)
+            val cleared = clearedId(conversationId, userId)
+            query(
+                """$MESSAGE_SELECT WHERE m.conversation_id = ? AND m.id > ? AND m.system = 0 AND m.deleted_at IS NULL
+                   AND (m.body LIKE ? ESCAPE '\' OR json_extract(m.song_json, '$.title') LIKE ? ESCAPE '\'
+                        OR json_extract(m.song_json, '$.artist') LIKE ? ESCAPE '\')
+                   ORDER BY m.id DESC LIMIT 50""",
+                conversationId, cleared, like, like, like,
+            ) { it.toMessage().seenAfter(cleared) }.let { withReactions(it) }
+        }
+    }
+
+    /** Removes the pictures and recordings of chats that no longer exist (deleted, or from before a restore). */
     suspend fun sweepImages() {
-        val root = java.io.File(java.io.File(dbPath).absoluteFile.parentFile, "chat-images")
         val existing = db.tx { query("SELECT id FROM conversations") { it.getLong(1) }.toSet() }
-        root.listFiles().orEmpty().filter { it.isDirectory && it.name.toLongOrNull() !in existing }.forEach { it.deleteRecursively() }
+        for (name in listOf("chat-images", "chat-voice")) {
+            val root = java.io.File(java.io.File(dbPath).absoluteFile.parentFile, name)
+            root.listFiles().orEmpty().filter { it.isDirectory && it.name.toLongOrNull() !in existing }.forEach { it.deleteRecursively() }
+        }
     }
 
     private fun imagesOf(conversationId: Long) = PictureFolder(dbPath, "chat-images/$conversationId")
+    private fun voicesOf(conversationId: Long) = PictureFolder(dbPath, "chat-voice/$conversationId")
+
+    /** A deleted chat's pictures and recordings. */
+    private fun removeFiles(conversationId: Long) {
+        imagesOf(conversationId).removeAll()
+        voicesOf(conversationId).removeAll()
+    }
 
     /** Which members of a chat are online right now (for the member list). */
     suspend fun onlineMembers(userId: Long, conversationId: Long): List<Long> = db.tx {
@@ -512,7 +601,7 @@ class Chat(
             if (owner != me.id) throw ApiError(HttpStatusCode.Forbidden, "Only the group's owner can delete it for everyone")
             memberIds(conversationId).also { update("DELETE FROM conversations WHERE id = ?", conversationId) }
         }
-        imagesOf(conversationId).removeAll()
+        removeFiles(conversationId)
         onRemoved(conversationId, members)
         hub.send(members, ConversationRemovedEvent(conversationId))
     }
@@ -595,7 +684,7 @@ class Chat(
         }
         // Pins that haven't run out, of messages this person can see.
         val pins = query(
-            """SELECT p.pinned_at, p.expires_at, m.id, m.body, m.song_json, m.image_kind,
+            """SELECT p.pinned_at, p.expires_at, m.id, m.body, m.song_json, m.image_kind, m.voice_ms,
                       u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at,
                       pu.id AS by_id, pu.username AS by_username, pu.display_name AS by_display_name, pu.avatar_at AS by_avatar_at
                FROM pins p JOIN messages m ON m.id = p.message_id JOIN users u ON u.id = m.sender_id JOIN users pu ON pu.id = p.pinned_by
@@ -609,6 +698,7 @@ class Chat(
                     body = it.getString("body"),
                     song = it.getString("song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
                     imageKind = it.getString("image_kind"),
+                    voiceMs = it.getObject("voice_ms")?.let { ms -> (ms as Number).toLong() },
                 ),
                 pinnedBy = it.toUser(prefix = "by_"),
                 pinnedAt = it.getLong("pinned_at"),
@@ -652,11 +742,14 @@ class Chat(
                 song = getString("reply_song_json")?.let { song -> json.decodeFromString(SongRef.serializer(), song) },
                 imageKind = getString("reply_image_kind"),
                 deleted = getObject("reply_deleted_at") != null,
+                voiceMs = getObject("reply_voice_ms")?.let { ms -> (ms as Number).toLong() },
             )
         },
         image = getString("image_kind")?.let { ImageDto(it, getInt("image_width"), getInt("image_height")) },
         editedAt = getObject("edited_at")?.let { (it as Number).toLong() },
         deleted = getObject("deleted_at") != null,
+        voiceMs = getObject("voice_ms")?.let { (it as Number).toLong() },
+        forwarded = getInt("forwarded") == 1,
     )
 
     /** How [this] looks to someone whose history starts after message [clearedId]. */
@@ -669,8 +762,10 @@ class Chat(
         /** How many messages a chat can have pinned at once, and for how long (24 hours, 7 days, 30 days). */
         const val MAX_PINS = 3
         val PIN_HOURS = setOf(24, 24 * 7, 24 * 30)
+        /** How many chats one message can be forwarded to at once. */
+        const val MAX_FORWARD = 10
         const val MESSAGE_SELECT = """SELECT m.*, u.id AS sender_id, u.username AS sender_username, u.display_name AS sender_display_name, u.avatar_at AS sender_avatar_at,
-                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json, r.image_kind AS reply_image_kind, r.deleted_at AS reply_deleted_at,
+                r.id AS reply_id, r.body AS reply_body, r.song_json AS reply_song_json, r.image_kind AS reply_image_kind, r.deleted_at AS reply_deleted_at, r.voice_ms AS reply_voice_ms,
                 ru.id AS reply_sender_id, ru.username AS reply_sender_username, ru.display_name AS reply_sender_display_name, ru.avatar_at AS reply_sender_avatar_at
             FROM messages m JOIN users u ON u.id = m.sender_id
             LEFT JOIN messages r ON r.id = m.reply_to LEFT JOIN users ru ON ru.id = r.sender_id"""

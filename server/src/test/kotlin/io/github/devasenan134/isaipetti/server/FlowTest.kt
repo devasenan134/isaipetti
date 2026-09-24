@@ -727,6 +727,72 @@ class FlowTest {
     }
 
     @Test
+    fun `voice messages, forwarding and searching a chat`() = testApplication {
+        val db = dbFile()
+        application { isaipettiSocial(Config(0, db, "http://unused", "", ""), FakeNavidrome()) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val (alice, bob, carol) = listOf("alice", "bob", "carol").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        val dm = client.postJson("/conversations/dm", NewDmRequest(carol.user.id), alice.sessionToken).body<ConversationDto>()
+        val messages = "/conversations/${group.id}/messages"
+        val m4a = ByteArray(4) + "ftypM4A ".toByteArray() + ByteArray(200)
+        suspend fun record(bytes: ByteArray, query: String) = client.post("/conversations/${group.id}/voice?$query") {
+            bearerAuth(alice.sessionToken); contentType(ContentType.Application.OctetStream); setBody(bytes)
+        }
+
+        // A voice message: its length comes back, and the recording is there for the chat's members.
+        val voice = record(m4a, "durationMs=12500").body<MessageDto>()
+        assertEquals(12_500L, voice.voiceMs)
+        assertTrue(m4a.contentEquals(client.get("$messages/${voice.id}/voice") { bearerAuth(bob.sessionToken) }.body<ByteArray>()))
+        assertEquals(HttpStatusCode.NotFound, client.get("$messages/${voice.id}/voice") { bearerAuth(carol.sessionToken) }.status)
+        // Not a recording, too short or too long: refused.
+        assertEquals(HttpStatusCode.BadRequest, record("hello there!".toByteArray(), "durationMs=1000").status)
+        assertEquals(HttpStatusCode.BadRequest, record(m4a, "durationMs=100").status)
+        assertEquals(HttpStatusCode.BadRequest, record(m4a, "durationMs=400000").status)
+
+        // Forwarding: to the DM with Carol, as Alice, marked forwarded; the recording comes along.
+        suspend fun forward(id: Long, to: List<Long>, session: SessionResponse = alice) =
+            client.postJson("$messages/$id/forward", ForwardRequest(to), session.sessionToken)
+        val song = SongRef("s1", "Ilaya Nila", "SPB")
+        val shared = client.postJson(messages, SendMessageRequest("listen to this", song), bob.sessionToken).body<MessageDto>()
+        val copies = forward(voice.id, listOf(dm.id)).body<List<MessageDto>>() + forward(shared.id, listOf(dm.id)).body<List<MessageDto>>()
+        assertEquals(listOf(true, true), copies.map { it.forwarded })
+        assertEquals(listOf("alice", "alice"), copies.map { it.sender.username })
+        assertEquals(12_500L to song, copies[0].voiceMs to copies[1].song)
+        val inDm = "/conversations/${dm.id}/messages/${copies[0].id}/voice"
+        assertTrue(m4a.contentEquals(client.get(inDm) { bearerAuth(carol.sessionToken) }.body<ByteArray>()))
+        // Only to chats you're in, and not lines like "… pinned a message".
+        assertEquals(HttpStatusCode.NotFound, forward(shared.id, listOf(dm.id), bob).status)
+        client.postJson("/conversations/${group.id}/pins", PinRequest(shared.id, 24), alice.sessionToken)
+        val line = client.getJson<List<MessageDto>>(messages, alice).last()
+        assertEquals(HttpStatusCode.BadRequest, forward(line.id, listOf(dm.id)).status)
+
+        // Searching: text and song titles, ignoring case; % is just a character; deleted messages don't show.
+        client.postJson(messages, SendMessageRequest("Meet at 7? 100% sure"), alice.sessionToken)
+        val oops = client.postJson(messages, SendMessageRequest("meet me never"), alice.sessionToken).body<MessageDto>()
+        client.delete("$messages/${oops.id}") { bearerAuth(alice.sessionToken) }
+        suspend fun search(q: String) = client.getJson<List<MessageDto>>(
+            "/conversations/${group.id}/search?q=${java.net.URLEncoder.encode(q, "UTF-8")}", bob,
+        ).map { it.body.ifEmpty { it.song?.title.orEmpty() } }
+        assertEquals(listOf("Meet at 7? 100% sure"), search("MEET"))
+        assertEquals(listOf("listen to this"), search("ilaya"))
+        assertEquals(listOf("Meet at 7? 100% sure"), search("0%"))
+        assertEquals(emptyList(), search("%x"))
+        assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${group.id}/search?q=meet") { bearerAuth(carol.sessionToken) }.status)
+
+        // Deleting the voice message removes its recording.
+        val file = File(File(db).absoluteFile.parentFile, "chat-voice/${group.id}/${voice.id}.m4a")
+        assertTrue(file.exists())
+        client.delete("$messages/${voice.id}") { bearerAuth(alice.sessionToken) }
+        assertTrue(!file.exists())
+    }
+
+    @Test
     fun `liked playlists are saved per person`() = testApplication {
         application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
         val client = createClient { install(ContentNegotiation) { json(eventJson) } }
