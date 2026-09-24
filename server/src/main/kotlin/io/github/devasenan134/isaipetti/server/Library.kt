@@ -58,6 +58,8 @@ class LibrarySnapshot(
     val energy: FloatArray,
     /** Changes whenever the songs or the analysis change. */
     val version: String,
+    /** How punchy the beats are (onset strength); NaN if unknown. */
+    val rhythm: FloatArray = FloatArray(songs.size) { Float.NaN },
 ) {
     val index: Map<String, Int> = songs.withIndex().associate { (i, s) -> s.id to i }
     val analyzed = sound.count { it != null }
@@ -196,17 +198,22 @@ class NavidromeLibrary(private val navidromeDb: String, private val featuresDb: 
         val sound = arrayOfNulls<FloatArray>(songs.size)
         val tempo = FloatArray(songs.size) { Float.NaN }
         val energy = FloatArray(songs.size) { Float.NaN }
+        val rhythm = FloatArray(songs.size) { Float.NaN }
         val prompts = mutableMapOf<String, FloatArray>()
         features { c ->
-            c.query("SELECT id, tempo, energy, embedding FROM songs WHERE embedding IS NOT NULL") { rs ->
+            c.query("SELECT id, tempo, energy, embedding, rhythm FROM songs WHERE embedding IS NOT NULL") { rs ->
                 val i = index[rs.getString(1)] ?: return@query
-                tempo[i] = rs.getFloat(2)
-                energy[i] = rs.getFloat(3)
+                // Silence means the file is longer than its music (the analyzer measured past the end): unknown.
+                if (rs.getFloat(3) > -100f && rs.getFloat(2) > 0f) {
+                    tempo[i] = rs.getFloat(2)
+                    energy[i] = rs.getFloat(3)
+                    rhythm[i] = rs.getFloat(5)
+                }
                 sound[i] = floats(rs.getBytes(4))
             }
             c.query("SELECT key, embedding FROM prompts") { rs -> prompts[rs.getString(1)] = floats(rs.getBytes(2)) }
         }
-        return LibrarySnapshot(songs, sound, moodScores(sound, prompts), prompts, tempo, energy, version)
+        return LibrarySnapshot(songs, sound, moodScores(sound, prompts), prompts, tempo, energy, version, rhythm)
     }
 
     /** One song; counts lyricist credits into [lyricists]. */

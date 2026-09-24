@@ -7,6 +7,19 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## Server update (2026-09-24): better mood mixes, composer and singer mixes
+
+No app update needed; the friends server changed.
+
+### Improved
+- **Chill, Sleep and Focus** no longer share songs: each song goes to the one it fits best. Chill and Sleep only take songs that measure as quiet with soft beats, none of them party songs; Focus takes only songs that clearly sound instrumental.
+- **Composer and singer mixes** (like the A.R. Rahman Mix) now have only that composer's or singer's songs. For music that sounds like theirs, use their **Radio**.
+
+### Fixed
+- A few songs whose files are longer than their music (the analyzer measured silence at the "middle") looked like the quietest songs in the library and showed up in Chill, Sleep and Focus. Such measurements are now ignored.
+
+---
+
 ## 0.6.1 (2026-09-24): Pictures, invites, page colours and a bigger look
 
 ### New
