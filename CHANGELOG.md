@@ -7,6 +7,14 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## Server update (2026-09-24): Stations aren't empty anymore
+
+Server only, released after 0.6.19. No new app version.
+
+- Opening a station from Home (Your stations, or Composer and artist stations) showed "Nothing here right now" and a greyed-out Play button. The server handed back the station's name and cover from Home instead of picking its songs. Now it picks them. Starting a radio from a song or the player already worked.
+
+---
+
 ## 0.6.19 (2026-09-24): Mixes that know their languages
 
 ### Improved

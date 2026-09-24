@@ -55,7 +55,8 @@ class MixService(
 
     suspend fun mix(user: UserDto, id: String): MixDto {
         val b = build(user)
-        val mix = b.home.asSequence().flatMap { it.mixes }.firstOrNull { it.id == id } ?: b.maker.byId(id)
+        // Stations on Home are only a name and a cover; their songs are picked when they're opened.
+        val mix = b.home.asSequence().flatMap { it.mixes }.firstOrNull { it.id == id && !it.endless } ?: b.maker.byId(id)
         return mix ?: followedCopy(user.id, id) ?: throw ApiError(HttpStatusCode.NotFound, "This mix isn't available right now")
     }
 
