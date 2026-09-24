@@ -7,6 +7,16 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.20 (2026-09-24): Rename a group
+
+### New
+- **The group's owner can rename it.** Open the group's members (tap its name at the top of the chat) and tap the pencil next to the name. Everyone in the group sees "… renamed the group to …" in the chat, and the new name shows up everywhere. Only the owner can rename it, just like adding and removing people.
+
+### Server
+- New `PUT /conversations/{id}/name` (owner only, 1 to 50 characters). Needs a server deploy.
+
+---
+
 ## Server update (2026-09-24): Stations aren't empty anymore
 
 Server only, released after 0.6.19. No new app version.

@@ -48,8 +48,7 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
     }
 
     suspend fun createGroup(me: UserDto, request: NewGroupRequest): ConversationDto {
-        val name = request.name.trim()
-        if (name.isEmpty() || name.length > 50) throw ApiError(HttpStatusCode.BadRequest, "Give the group a name (up to 50 characters)")
+        val name = groupName(request.name)
         val memberIds = (request.memberIds.toSet() - me.id)
         if (memberIds.isEmpty()) throw ApiError(HttpStatusCode.BadRequest, "Add at least one friend")
         val myFriends = friends.friendIds(me.id).toSet()
@@ -277,6 +276,24 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         return conversation
     }
 
+    /** The group's owner renames it; everyone sees "… renamed the group to …". */
+    suspend fun renameGroup(me: UserDto, conversationId: Long, newName: String): ConversationDto {
+        val name = groupName(newName)
+        val (message, members, conversation) = db.tx {
+            requireOwner(conversationId, me.id, "Only the group's owner can rename it")
+            val old = queryOne("SELECT name FROM conversations WHERE id = ?", conversationId) { it.getString(1) }
+            if (old == name) throw ApiError(HttpStatusCode.BadRequest, "The group already has that name")
+            update("UPDATE conversations SET name = ? WHERE id = ?", name, conversationId)
+            val id = insert(
+                "INSERT INTO messages (conversation_id, sender_id, body, created_at, system) VALUES (?, ?, ?, ?, 1)",
+                conversationId, me.id, "renamed the group to \u201c$name\u201d", now(),
+            )
+            Triple(queryOne("$MESSAGE_SELECT WHERE m.id = ?", id) { it.toMessage() }!!, memberIds(conversationId), conversation(conversationId, me.id))
+        }
+        hub.send(members, MessageEvent(message))
+        return conversation
+    }
+
     /** Which members of a chat are online right now (for the member list). */
     suspend fun onlineMembers(userId: Long, conversationId: Long): List<Long> = db.tx {
         requireMember(conversationId, userId)
@@ -302,12 +319,16 @@ class Chat(private val db: Db, private val friends: Friends, private val hub: Hu
         hub.send(members, ConversationRemovedEvent(conversationId))
     }
 
-    /** Only a group's owner (who made it, or took over when they left) can change who's in it. */
-    private fun Connection.requireOwner(conversationId: Long, userId: Long) {
+    /** Only a group's owner (who made it, or took over when they left) can change who's in it, or its name. */
+    private fun Connection.requireOwner(conversationId: Long, userId: Long, error: String = "Only the group's owner can add or remove people") {
         requireMember(conversationId, userId)
-        requireGroup(conversationId, "Only group chats have members to change")
+        requireGroup(conversationId, "Only group chats can be changed like that")
         val owner = queryOne("SELECT created_by FROM conversations WHERE id = ?", conversationId) { it.getLong(1) }
-        if (owner != userId) throw ApiError(HttpStatusCode.Forbidden, "Only the group's owner can add or remove people")
+        if (owner != userId) throw ApiError(HttpStatusCode.Forbidden, error)
+    }
+
+    private fun groupName(name: String) = name.trim().also {
+        if (it.isEmpty() || it.length > 50) throw ApiError(HttpStatusCode.BadRequest, "Give the group a name (up to 50 characters)")
     }
 
     private fun Connection.requireGroup(conversationId: Long, error: String) {

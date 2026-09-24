@@ -501,6 +501,17 @@ class FlowTest {
         assertEquals(HttpStatusCode.NotFound, client.get("/conversations/${group.id}/messages") { bearerAuth(carol.sessionToken) }.status)
         val removed = client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", bob).last()
         assertEquals(Triple("alice", "removed carol", true), Triple(removed.sender.username, removed.body, removed.system))
+
+        // Only the owner renames it, to a real name that's new.
+        suspend fun rename(name: String, session: SessionResponse) = client.put("/conversations/${group.id}/name") {
+            bearerAuth(session.sessionToken); contentType(ContentType.Application.Json); setBody(RenameGroupRequest(name))
+        }
+        assertEquals(HttpStatusCode.Forbidden, rename("bob's gang", bob).status)
+        assertEquals(HttpStatusCode.BadRequest, rename("   ", alice).status)
+        assertEquals(HttpStatusCode.BadRequest, rename("gang", alice).status)
+        assertEquals("Raja fans", rename("  Raja fans ", alice).body<ConversationDto>().name)
+        assertEquals("Raja fans", client.getJson<List<ConversationDto>>("/conversations", bob).single().name)
+        assertEquals("renamed the group to “Raja fans”", client.getJson<List<MessageDto>>("/conversations/${group.id}/messages", bob).last().body)
     }
 
     @Test
