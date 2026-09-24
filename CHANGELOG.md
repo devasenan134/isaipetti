@@ -7,6 +7,17 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.6.3 (2026-09-24): Indigo night, and a new Home
+
+### New
+- **A new colour theme: Indigo night.** Deep indigo with a periwinkle accent, in dark and light mode. Titles are near white and subtitles a bright, cool grey, so text no longer looks dull.
+- **Home, in a new order.** First **Made for <your name>** as tiles. Then **Recent songs**: songs you started by tapping them, from anywhere (a movie, a playlist, search, a chat...), as a list. Then **Recently played**: movies, playlists, Liked songs, mixes, composers and singers you started as a whole with **Play**, **Shuffle** or **Resume**, as tiles. Tapping a single song no longer adds its movie or playlist there.
+
+### Improved
+- **Your Library** starts at the top of the page (it sat in the middle), its sections are **All, Playlists, Movies, My Playlists**, and its pictures are a little bigger.
+
+---
+
 ## 0.6.2 (2026-09-24): Made for you vs. showcases, cropping photos, and a tidier Your Library
 
 ### New
