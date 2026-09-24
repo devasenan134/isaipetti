@@ -191,10 +191,7 @@ Features not yet agreed. Add freely.
 
 | Idea | Area | Notes |
 |---|---|---|
-| Voice messages | Chat | Record with a held button; needs audio upload like photos |
-| Forward a message to another chat | Chat | |
 | @mentions in groups, with their own notification | Chat | |
-| Search inside a chat | Chat | |
 | Mute a chat's notifications | Chat | |
 | Option to have a liked songs section | | |
 | Option to like an entire albums or playlist | | want to have the liked songs section and albums, playlist listed on a new separate page like Your library |

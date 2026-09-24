@@ -83,7 +83,13 @@ data class MessageDto(
     val editedAt: Long? = null,
     /** Its sender deleted it for everyone: only "This message was deleted" is left. */
     val deleted: Boolean = false,
+    /** A voice message (GET /conversations/{id}/messages/{messageId}/voice), this long. */
+    val voiceMs: Long? = null,
+    /** Forwarded from another chat (by its sender). */
+    val forwarded: Boolean = false,
 )
+
+@Serializable data class ForwardRequest(val conversationIds: List<Long>)
 
 @Serializable data class ReactionDto(val emoji: String, val userIds: List<Long>)
 @Serializable data class ReactRequest(val emoji: String)
@@ -117,6 +123,8 @@ data class ReplyDto(
     val imageKind: String? = null,
     /** The quoted message was deleted since. */
     val deleted: Boolean = false,
+    /** Set when it's a voice message: how long it is. */
+    val voiceMs: Long? = null,
 )
 
 @Serializable

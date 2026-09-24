@@ -137,6 +137,7 @@ class Push(private val db: Db, private val sender: PushSender) {
             "isGroup" to (conversation.kind == "group").toString(),
             "body" to when {
                 message.image != null -> imageLabel(message.image.kind) + if (message.body.isNotBlank()) " – ${message.body}" else ""
+                message.voiceMs != null -> "🎤 Voice message (${clockTime(message.voiceMs)})"
                 else -> message.song?.let { "♪ ${it.title}" + it.clipLabel() + if (message.body.isNotBlank()) " – ${message.body}" else "" } ?: message.body
             },
         ),

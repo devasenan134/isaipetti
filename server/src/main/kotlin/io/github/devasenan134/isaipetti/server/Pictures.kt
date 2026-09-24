@@ -50,6 +50,20 @@ class ChatImage(val bytes: ByteArray, val kind: String, val width: Int, val heig
     }
 }
 
+/** A voice message: an AAC recording in an MP4 (.m4a) file, as Android's recorder makes it. */
+class VoiceNote(val bytes: ByteArray, val durationMs: Long) {
+    init {
+        if (bytes.size < 12 || String(bytes, 4, 4) != "ftyp") throw ApiError(HttpStatusCode.BadRequest, "That isn't a voice recording")
+        if (durationMs !in 300..MAX_MS) throw ApiError(HttpStatusCode.BadRequest, "A voice message is up to 5 minutes long")
+        if (bytes.size > ChatImage.MAX_BYTES) throw ApiError(HttpStatusCode.PayloadTooLarge, "The recording is too big")
+    }
+
+    companion object {
+        /** 5 minutes, and a little for the recorder stopping late. */
+        const val MAX_MS = 5 * 60_000L + 5_000
+    }
+}
+
 /** Picture files kept next to the database, one per id, in the folder [name] (e.g. "avatars"). */
 class PictureFolder(dbPath: String, name: String) {
     private val dir = File(File(dbPath).absoluteFile.parentFile, name).apply { mkdirs() }

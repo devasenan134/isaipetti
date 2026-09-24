@@ -121,7 +121,8 @@ fun Application.isaipettiSocial(
         onCall { call ->
             val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
             // Chat pictures can be bigger (a GIF from the keyboard); ChatImage checks them.
-            val limit = if (call.request.local.uri.substringBefore('?').endsWith("/images")) ChatImage.MAX_BYTES + 1024L else MAX_BODY_BYTES
+            val path = call.request.local.uri.substringBefore('?')
+            val limit = if (path.endsWith("/images") || path.endsWith("/voice")) ChatImage.MAX_BYTES + 1024L else MAX_BODY_BYTES
             if (length != null && length > limit) call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Request is too large"))
         }
     })
@@ -318,6 +319,27 @@ fun Application.isaipettiSocial(
                     )
                     val request = SendMessageRequest(q["caption"].orEmpty(), replyTo = q["replyTo"]?.toLongOrNull())
                     call.respond(chat.send(call.me(), call.longParam("id"), request, image = image))
+                }
+                // A voice message: the recording is the body; its length and reply go in the address.
+                post("/{id}/voice") {
+                    val q = call.request.queryParameters
+                    val voice = VoiceNote(call.receive<ByteArray>(), q["durationMs"]?.toLongOrNull() ?: 0)
+                    call.respond(chat.send(call.me(), call.longParam("id"), SendMessageRequest(replyTo = q["replyTo"]?.toLongOrNull()), voice = voice))
+                }
+                get("/{id}/messages/{messageId}/voice") {
+                    val file = chat.voice(call.me().id, call.longParam("id"), call.longParam("messageId"))
+                        ?: throw ApiError(HttpStatusCode.NotFound, "No recording")
+                    call.response.headers.append(HttpHeaders.CacheControl, "private, max-age=31536000, immutable")
+                    call.respondFile(file)
+                }
+                // Forward a message to other chats of yours (it's sent there by you, marked "Forwarded").
+                post("/{id}/messages/{messageId}/forward") {
+                    val to = call.receive<ForwardRequest>().conversationIds
+                    call.respond(chat.forward(call.me(), call.longParam("id"), call.longParam("messageId"), to))
+                }
+                // Search a chat's messages (text, and shared songs' titles and artists).
+                get("/{id}/search") {
+                    call.respond(chat.search(call.me().id, call.longParam("id"), call.request.queryParameters["q"].orEmpty()))
                 }
                 get("/{id}/messages/{messageId}/image") {
                     val file = chat.image(call.me().id, call.longParam("id"), call.longParam("messageId"))

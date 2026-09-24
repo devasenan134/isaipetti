@@ -7,6 +7,23 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.10.0 (2026-09-25): Voice messages, forwarding and search in a chat
+
+### New
+- **Voice messages.** With nothing typed, the send button is a microphone. Tap it to record (the first time, Android asks to allow the microphone), then tap send, or the bin to throw it away. They can be up to 5 minutes. In the chat, tap play; drag the bar to skip around. Your music pauses while one plays and carries on after, except in a jam, where it keeps playing for everyone. Voice messages can be replies too.
+- **Forward a message.** Long-press it, tap **Forward** and pick up to 10 chats. Text, songs, photos, GIFs, stickers and voice messages all work. It arrives from you, marked "↪ Forwarded".
+- **Search in a chat.** Tap 🔍 at the top of a chat and type. Messages and shared songs (title or artist) that match show up, newest first, with the match in bold. Tap one to go to it; older messages load by themselves if it's far back.
+
+### Improved
+- Tapping "Load earlier messages" no longer jumps you back to the newest message.
+
+### Server
+- `POST /conversations/{id}/voice?durationMs=&replyTo=` (an .m4a recording up to 5 minutes and 5 MB) and `GET /conversations/{id}/messages/{messageId}/voice`. Recordings are kept in `data/chat-voice/<chat>/` and deleted with their message or chat.
+- `POST /conversations/{id}/messages/{messageId}/forward` (`conversationIds`, up to 10) and `GET /conversations/{id}/search?q=`.
+- Messages carry `voiceMs` and `forwarded`. Database schema 15, so back up the DB before deploying.
+
+---
+
 ## 0.9.0 (2026-09-24): Reactions, editing, deleting, typing and seen
 
 ### New
