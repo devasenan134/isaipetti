@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.11.0 (2026-09-25): @mentions, and reactions your way
+## 0.10.1 (2026-09-25): @mentions, and reactions your way
 
 ### New
 - **@mention people in groups.** Type **@** in a group chat and the members show above the message box; keep typing to narrow them down, and tap one to put "@Their Name" in. Mentions show in colour in the chat, and a mention of you is highlighted. The person you mention gets a notification saying "Mentioned you: …", and the chat list shows an **@** next to the chat until they've read it.
