@@ -793,6 +793,46 @@ class FlowTest {
     }
 
     @Test
+    fun `mentions in a group`() = testApplication {
+        val push = FakePush()
+        application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome(), push) }
+        val client = createClient { install(ContentNegotiation) { json(eventJson) } }
+        val (alice, bob, carol, erin) = listOf("alice", "bob", "carol", "erin").map { client.login(it) }
+        for (friend in listOf(bob, carol)) {
+            client.postJson("/friends/requests", AddFriendRequest(friend.user.username), alice.sessionToken)
+            client.postJson("/friends/requests/${alice.user.id}/accept", Unit, friend.sessionToken)
+        }
+        for ((session, token) in listOf(bob to "phone-bob", carol to "phone-carol")) client.postJson("/devices", DeviceRequest(token), session.sessionToken)
+        val group = client.postJson("/conversations/group", NewGroupRequest("gang", listOf(bob.user.id, carol.user.id)), alice.sessionToken)
+            .body<ConversationDto>()
+        val messages = "/conversations/${group.id}/messages"
+        push.sent.clear()
+
+        // Alice mentions Bob (and Erin, who isn't in the group, and herself: both dropped).
+        val hi = client.postJson(
+            messages, SendMessageRequest("@bob are you coming?", mentions = listOf(bob.user.id, erin.user.id, alice.user.id)), alice.sessionToken,
+        ).body<MessageDto>()
+        assertEquals(listOf(bob.user.id), hi.mentions)
+        // Bob's notification says he was mentioned; Carol's doesn't.
+        val bodies = push.sent.associate { it.first to it.second["body"] }
+        assertEquals("Mentioned you: @bob are you coming?", bodies["phone-bob"])
+        assertEquals("@bob are you coming?", bodies["phone-carol"])
+        // Bob's chat list shows the unread mention until he reads it.
+        suspend fun mentionsFor(session: SessionResponse) = client.getJson<List<ConversationDto>>("/conversations", session).single().unreadMentions
+        assertEquals(1 to 0, mentionsFor(bob) to mentionsFor(carol))
+        client.postJson("/conversations/${group.id}/read", MarkReadRequest(hi.id), bob.sessionToken)
+        assertEquals(0, mentionsFor(bob))
+
+        // Editing can change who's mentioned.
+        val edited = client.patch("$messages/${hi.id}") {
+            bearerAuth(alice.sessionToken); contentType(ContentType.Application.Json)
+            setBody(EditMessageRequest("@carol are you coming?", mentions = listOf(carol.user.id)))
+        }.body<MessageDto>()
+        assertEquals(listOf(carol.user.id), edited.mentions)
+        assertEquals(listOf(carol.user.id), client.getJson<List<MessageDto>>(messages, bob).last().mentions)
+    }
+
+    @Test
     fun `liked playlists are saved per person`() = testApplication {
         application { isaipettiSocial(Config(0, dbFile(), "http://unused", "", ""), FakeNavidrome()) }
         val client = createClient { install(ContentNegotiation) { json(eventJson) } }

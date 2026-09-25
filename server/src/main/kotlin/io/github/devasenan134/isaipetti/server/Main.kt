@@ -355,7 +355,8 @@ fun Application.isaipettiSocial(
                 }
                 // Your own messages: change their text, or delete them for everyone. Anyone reacts with an emoji.
                 patch("/{id}/messages/{messageId}") {
-                    call.respond(chat.edit(call.me(), call.longParam("id"), call.longParam("messageId"), call.receive<EditMessageRequest>().body))
+                    val request = call.receive<EditMessageRequest>()
+                    call.respond(chat.edit(call.me(), call.longParam("id"), call.longParam("messageId"), request.body, request.mentions))
                 }
                 delete("/{id}/messages/{messageId}") { call.respond(chat.deleteMessage(call.me(), call.longParam("id"), call.longParam("messageId"))) }
                 put("/{id}/messages/{messageId}/reaction") {

@@ -152,9 +152,10 @@ class Chat(
             val songJson = request.song?.let { json.encodeToString(SongRef.serializer(), it) }
             val id = insert(
                 """INSERT INTO messages (conversation_id, sender_id, body, song_json, created_at, request, request_mode, reply_to,
-                   image_kind, image_width, image_height, voice_ms, forwarded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   image_kind, image_width, image_height, voice_ms, forwarded, mentions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 conversationId, me.id, body, songJson, now(), songRequest?.let { "pending" }, songRequest, request.replyTo,
                 image?.kind, image?.width, image?.height, voice?.durationMs, if (forwarded) 1 else 0,
+                mentionsColumn(conversationId, me.id, request.mentions),
             )
             // If saving the file fails, the message isn't sent either.
             image?.let { imagesOf(conversationId).save(id, it.bytes, it.extension) }
@@ -198,14 +199,22 @@ class Chat(
     }
 
     /** Changes the text (or caption) of your own message. Not song requests or lines like "… left the group". */
-    suspend fun edit(me: UserDto, conversationId: Long, messageId: Long, newBody: String): MessageDto {
+    suspend fun edit(me: UserDto, conversationId: Long, messageId: Long, newBody: String, mentions: List<Long>? = null): MessageDto {
         val body = newBody.trim()
         if (body.length > 4000) throw ApiError(HttpStatusCode.BadRequest, "Message is too long")
         return changed(me, conversationId, messageId) {
             val hasMore = ownMessage(me, conversationId, messageId, "edit")
             if (body.isEmpty() && !hasMore) throw ApiError(HttpStatusCode.BadRequest, "Message is empty")
             update("UPDATE messages SET body = ?, edited_at = ? WHERE id = ?", body, now(), messageId)
+            if (mentions != null) update("UPDATE messages SET mentions = ? WHERE id = ?", mentionsColumn(conversationId, me.id, mentions), messageId)
         }
+    }
+
+    /** Who a message may @mention: other members of the chat (anyone else is dropped), at most 20; null for none. */
+    private fun Connection.mentionsColumn(conversationId: Long, senderId: Long, mentions: List<Long>): String? {
+        if (mentions.isEmpty()) return null
+        val members = memberIds(conversationId).toSet()
+        return mentions.distinct().filter { it in members && it != senderId }.take(20).joinToString(",").ifEmpty { null }
     }
 
     /**
@@ -676,6 +685,13 @@ class Chat(
                WHERE m.conversation_id = ? AND m.id > cm.last_read_id AND m.sender_id != ?""",
             viewerId, id, viewerId,
         ) { it.getInt(1) } ?: 0
+        val unreadMentions = if (unread == 0) 0 else queryOne(
+            """SELECT count(*) FROM messages m JOIN conversation_members cm
+               ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+               WHERE m.conversation_id = ? AND m.id > cm.last_read_id AND m.deleted_at IS NULL
+               AND (',' || m.mentions || ',') LIKE ?""",
+            viewerId, id, "%,$viewerId,%",
+        ) { it.getInt(1) } ?: 0
         val others = members.filter { it.id != viewerId }
         val canMessage = if (kind == "dm") {
             others.any { queryOne("SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ?", viewerId, it.id) { true } != null }
@@ -710,6 +726,7 @@ class Chat(
             readMarks = query(
                 "SELECT user_id, last_read_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?", id, viewerId,
             ) { ReadMarkDto(it.getLong(1), it.getLong(2)) },
+            unreadMentions = unreadMentions,
         )
     }
 
@@ -750,6 +767,7 @@ class Chat(
         deleted = getObject("deleted_at") != null,
         voiceMs = getObject("voice_ms")?.let { (it as Number).toLong() },
         forwarded = getInt("forwarded") == 1,
+        mentions = getString("mentions")?.split(',')?.mapNotNull { it.toLongOrNull() }.orEmpty(),
     )
 
     /** How [this] looks to someone whose history starts after message [clearedId]. */
