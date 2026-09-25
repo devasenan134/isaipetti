@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -191,6 +191,9 @@ class Db(path: String) {
             ALTER TABLE messages ADD COLUMN voice_ms INTEGER;
             ALTER TABLE messages ADD COLUMN forwarded INTEGER NOT NULL DEFAULT 0
         """.trimIndent()
+
+        // @mentions: the ids of the people a message mentions, like "3,7" (null for none).
+        val SCHEMA_V16 = "ALTER TABLE messages ADD COLUMN mentions TEXT"
 
         // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,
         // and when each mix's songs last changed.

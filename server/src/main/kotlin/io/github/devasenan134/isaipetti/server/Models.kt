@@ -87,13 +87,16 @@ data class MessageDto(
     val voiceMs: Long? = null,
     /** Forwarded from another chat (by its sender). */
     val forwarded: Boolean = false,
+    /** The people it @mentions (its text has "@Their Name" for each). */
+    val mentions: List<Long> = emptyList(),
 )
 
 @Serializable data class ForwardRequest(val conversationIds: List<Long>)
 
 @Serializable data class ReactionDto(val emoji: String, val userIds: List<Long>)
 @Serializable data class ReactRequest(val emoji: String)
-@Serializable data class EditMessageRequest(val body: String)
+/** New text for your message; [mentions] replaces who it mentions (left out: they stay as they were). */
+@Serializable data class EditMessageRequest(val body: String, val mentions: List<Long>? = null)
 
 /** How far one member of a chat has read (for "Seen"). */
 @Serializable data class ReadMarkDto(val userId: Long, val lastReadId: Long)
@@ -149,13 +152,15 @@ data class ConversationDto(
     val pins: List<PinDto> = emptyList(),
     /** How far the other members have read, for "Seen". */
     val readMarks: List<ReadMarkDto> = emptyList(),
+    /** Unread messages that @mention you. */
+    val unreadMentions: Int = 0,
 )
 
 @Serializable data class NewDmRequest(val userId: Long)
 @Serializable data class NewGroupRequest(val name: String, val memberIds: List<Long>)
 @Serializable data class AddMembersRequest(val userIds: List<Long>)
 @Serializable data class RenameGroupRequest(val name: String)
-@Serializable data class SendMessageRequest(val body: String = "", val song: SongRef? = null, val replyTo: Long? = null)
+@Serializable data class SendMessageRequest(val body: String = "", val song: SongRef? = null, val replyTo: Long? = null, val mentions: List<Long> = emptyList())
 @Serializable data class MarkReadRequest(val messageId: Long)
 @Serializable data class DeviceRequest(val token: String)
 @Serializable data class RenameRequest(val displayName: String)

@@ -127,20 +127,27 @@ class Push(private val db: Db, private val sender: PushSender) {
         }
     }
 
-    suspend fun newMessage(message: MessageDto, conversation: ConversationDto, recipients: List<Long>) = notify(
-        recipients,
-        mapOf(
-            "type" to "message",
-            "conversationId" to message.conversationId.toString(),
-            "title" to if (conversation.kind == "group") conversation.name.orEmpty() else message.sender.displayName,
-            "sender" to message.sender.displayName,
-            "isGroup" to (conversation.kind == "group").toString(),
-            "body" to when {
-                message.image != null -> imageLabel(message.image.kind) + if (message.body.isNotBlank()) " – ${message.body}" else ""
-                message.voiceMs != null -> "🎤 Voice message (${clockTime(message.voiceMs)})"
-                else -> message.song?.let { "♪ ${it.title}" + it.clipLabel() + if (message.body.isNotBlank()) " – ${message.body}" else "" } ?: message.body
-            },
-        ),
+    /** A new message, for people who don't have the app open. Those it @mentions are told so first thing. */
+    suspend fun newMessage(message: MessageDto, conversation: ConversationDto, recipients: List<Long>) {
+        val (mentioned, others) = recipients.partition { it in message.mentions }
+        if (others.isNotEmpty()) notify(others, messageData(message, conversation))
+        if (mentioned.isNotEmpty()) {
+            val data = messageData(message, conversation)
+            notify(mentioned, data + ("body" to "Mentioned you: " + data["body"]))
+        }
+    }
+
+    private fun messageData(message: MessageDto, conversation: ConversationDto) = mapOf(
+        "type" to "message",
+        "conversationId" to message.conversationId.toString(),
+        "title" to if (conversation.kind == "group") conversation.name.orEmpty() else message.sender.displayName,
+        "sender" to message.sender.displayName,
+        "isGroup" to (conversation.kind == "group").toString(),
+        "body" to when {
+            message.image != null -> imageLabel(message.image.kind) + if (message.body.isNotBlank()) " – ${message.body}" else ""
+            message.voiceMs != null -> "🎤 Voice message (${clockTime(message.voiceMs)})"
+            else -> message.song?.let { "♪ ${it.title}" + it.clipLabel() + if (message.body.isNotBlank()) " – ${message.body}" else "" } ?: message.body
+        },
     )
 
     private fun imageLabel(kind: String) = when (kind) {

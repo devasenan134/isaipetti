@@ -7,6 +7,20 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.11.0 (2026-09-25): @mentions, and reactions your way
+
+### New
+- **@mention people in groups.** Type **@** in a group chat and the members show above the message box; keep typing to narrow them down, and tap one to put "@Their Name" in. Mentions show in colour in the chat, and a mention of you is highlighted. The person you mention gets a notification saying "Mentioned you: …", and the chat list shows an **@** next to the chat until they've read it.
+- **See who reacted.** Tap the reactions under a message: a sheet lists everyone, with a tab for each emoji ("All 3 · 👍 2 · ❤️ 1"). Tap your own to remove it.
+- **React with any emoji.** The long-press menu's emoji row has a **＋** for a bigger choice of emoji, or any emoji typed from the keyboard.
+- **Choose your quick reactions.** Tap **✎** at the end of the emoji row, then tap a place and the emoji to put there. They're kept on your phone; **Reset** brings back 👍 ❤️ 😂 😮 😢 🙏.
+
+### Server
+- Messages take and carry `mentions` (people in the chat only; editing a message can change them). Chats carry `unreadMentions`. Push notifications to mentioned people start with "Mentioned you:".
+- Database schema 16 (`messages.mentions`), so back up the DB before deploying.
+
+---
+
 ## 0.10.0 (2026-09-25): Voice messages, forwarding and search in a chat
 
 ### New

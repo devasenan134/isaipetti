@@ -191,7 +191,6 @@ Features not yet agreed. Add freely.
 
 | Idea | Area | Notes |
 |---|---|---|
-| @mentions in groups, with their own notification | Chat | |
 | Mute a chat's notifications | Chat | |
 | Option to have a liked songs section | | |
 | Option to like an entire albums or playlist | | want to have the liked songs section and albums, playlist listed on a new separate page like Your library |
