@@ -30,6 +30,11 @@ The one place for what has shipped, what is being built, what is planned, and wh
 
 Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
+### 0.11.0: Request songs and movies that aren't in the library
+- Search shows catalog (iTunes) songs and movies the library doesn't have, with a Request button
+- Your requests; admins answer them (Added / Can't find), and whoever asked gets a notification
+- Next: notice new files by itself and close requests automatically; then fetch the music automatically
+
 ### 0.6.10: Search by actor and lyricist, forgiving spelling
 - Search finds actors (their movies) and lyricists (their songs); spelling goes by sound
 - People, Movies and Songs in results; one person per name

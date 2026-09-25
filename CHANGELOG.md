@@ -7,6 +7,22 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.11.0 (2026-09-25): Request songs and movies that aren't in the library
+
+### New
+- **Search finds music that isn't in the library.** After your results, a **Not in the library** section shows matching movies and songs from the iTunes catalog (Indian store), with cover, movie, year and artists. Songs and movies you already have are left out, whatever the spelling, and so are covers, karaoke and "slowed" versions.
+- **Request button.** Tap **Request** on a song or a whole movie. It shows **Requested ✓**; tap that to take it back. If a friend already asked, you'll see "Asked for by …", and your request joins theirs.
+- **Your requests.** Search (before you type) has **Your requests**: what you asked for, whether it's waiting, in the library (tap to open the movie) or couldn't be found (with the reason).
+- **Notifications.** When your request is added you get "It's in the library"; tapping it opens the movie. If it can't be found, you're told that too. A new "Song and movie requests" notification channel can be muted on its own.
+- **For admins:** you get a notification for each new request. **Your requests** has an **Everyone's** tab with **Added** (checks that the music is really in the library, then tells everyone who asked) and **Can't find** (with an optional reason).
+
+### Server
+- `GET /search/catalog?q=` (iTunes Search API; answers kept 6 hours, at most 16 catalog calls a minute), `GET/POST /requests`, `DELETE /requests/{id}`, and for Navidrome admins `GET /admin/requests`, `POST /admin/requests/{id}/done` and `POST /admin/requests/{id}/decline`. Up to 20 waiting requests per person.
+- Push types `musicRequest` (admins), `musicReady` (with `albumId`) and `musicDeclined`.
+- Database schema 17 (`music_requests`, `music_request_askers`), so back up the DB before deploying. The server now calls itunes.apple.com.
+
+---
+
 ## 0.10.1 (2026-09-25): @mentions, and reactions your way
 
 ### New

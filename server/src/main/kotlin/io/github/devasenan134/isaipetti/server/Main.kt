@@ -61,6 +61,7 @@ fun Application.isaipettiSocial(
     issueTracker: IssueTracker? = config.githubToken?.let { token -> config.githubRepo?.let { GitHubIssues(it, token) } },
     pushConfig: PushConfig? = config.firebaseAppConfigFile?.let { PushConfig.fromGoogleServices(it) },
     music: MusicSource? = config.navidromeDb?.let { NavidromeLibrary(it, config.featuresDb) },
+    catalog: Catalog = ITunesCatalog(),
 ) {
     val db = Db(config.dbPath)
     val friends = Friends(db)
@@ -88,6 +89,8 @@ fun Application.isaipettiSocial(
     val mixes = music?.let { MixService(db, it, java.time.ZoneId.of(config.timeZone)) }
     // Without a cast file next to the database, search just has no actors.
     val search = music?.let { LibrarySearch(it, File(config.castFile ?: File(File(config.dbPath).absoluteFile.parentFile, "movie-cast.jsonl").path)) }
+    // Asking for music the library doesn't have (it needs the library, to know what's missing).
+    val requests = music?.let { MusicRequests(db, it, catalog, push, stats::isAdmin, stats::adminIds) }
     val limiter = RateLimiter(maxPerMinute = 10)
     val cleanup = Cleanup(db, navidrome, hub)
     // Every 10 minutes, remove people whose Navidrome account is gone.
@@ -131,6 +134,8 @@ fun Application.isaipettiSocial(
             authenticate { credential -> accounts.userForToken(credential.token) }
         }
     }
+
+    fun requestsOn() = requests ?: throw ApiError(HttpStatusCode.NotFound, "Requests are off on this server")
 
     routing {
         get("/health") { call.respond(mapOf("status" to "ok")) }
@@ -241,6 +246,18 @@ fun Application.isaipettiSocial(
                 fun searchOn() = search ?: throw ApiError(HttpStatusCode.NotFound, "Search is off on this server")
                 get { call.respond(searchOn().search(call.request.queryParameters["q"].orEmpty().take(100))) }
                 get("/people/{id}") { call.respond(searchOn().person(call.parameters["id"].orEmpty())) }
+                // Songs and movies from the music catalog that aren't in the library, to request.
+                get("/catalog") { call.respond(requestsOn().search(call.me(), call.request.queryParameters["q"].orEmpty().take(100))) }
+            }
+
+            // Requests for music that isn't in the library; admins answer them.
+            route("/requests") {
+                get { call.respond(requestsOn().mine(call.me())) }
+                post { call.respond(requestsOn().request(call.me(), call.receive<NewMusicRequest>().id)) }
+                delete("/{id}") {
+                    requestsOn().cancel(call.me(), call.longParam("id"))
+                    call.respond(HttpStatusCode.NoContent)
+                }
             }
 
             // Mixes, playlists and stations by Isai Pettai.
@@ -270,6 +287,11 @@ fun Application.isaipettiSocial(
             route("/admin") {
                 get("/access") { call.respond(AdminAccessDto(stats.isAdmin(call.me()))) }
                 get("/stats") { call.respond(stats.report(call.me(), call.request.queryParameters["tz"])) }
+                get("/requests") { call.respond(requestsOn().all(call.me())) }
+                post("/requests/{id}/done") { call.respond(requestsOn().complete(call.me(), call.longParam("id"))) }
+                post("/requests/{id}/decline") {
+                    call.respond(requestsOn().decline(call.me(), call.longParam("id"), call.receive<DeclineMusicRequest>().note))
+                }
             }
 
             post("/bug-reports") { call.respond(bugReports.report(call.me(), call.receive())) }
