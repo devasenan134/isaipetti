@@ -185,4 +185,21 @@ class Push(private val db: Db, private val sender: PushSender) {
         listOf(to),
         mapOf("type" to "friendAccepted", "title" to "New friend", "body" to "${by.displayName} accepted your friend request"),
     )
+
+    /** Tells the admins someone asked for music that isn't in the library. */
+    suspend fun musicRequested(adminIds: List<Long>, by: UserDto, label: String) = notify(
+        adminIds,
+        mapOf("type" to "musicRequest", "title" to "New request", "body" to "${by.displayName} asked for $label"),
+    )
+
+    /** The music someone asked for is in the library now: tapping opens its movie. */
+    suspend fun musicReady(userIds: List<Long>, label: String, albumId: String) = notify(
+        userIds,
+        mapOf("type" to "musicReady", "albumId" to albumId, "title" to "It's in the library", "body" to "♪ $label is ready to play"),
+    )
+
+    suspend fun musicDeclined(userIds: List<Long>, label: String, note: String?) = notify(
+        userIds,
+        mapOf("type" to "musicDeclined", "title" to "Couldn't get $label", "body" to (note ?: "It couldn't be found this time. Sorry!")),
+    )
 }

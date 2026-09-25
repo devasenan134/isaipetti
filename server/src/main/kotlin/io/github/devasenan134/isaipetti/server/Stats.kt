@@ -72,6 +72,15 @@ class Stats(private val navidromeDb: String?, private val db: Db, private val hi
         return users.any { it.isAdmin && (it.id == navidromeId || (navidromeId == null && it.userName.equals(user.username, true))) }
     }
 
+    /** Everyone here who is a Navidrome admin (they hear about new music requests). */
+    suspend fun adminIds(): List<Long> {
+        val admins = snapshot()?.users?.filter { it.isAdmin } ?: return emptyList()
+        val users = db.tx { query("SELECT id, navidrome_id, username FROM users WHERE deleted_at IS NULL") { Triple(it.getLong(1), it.getString(2), it.getString(3)) } }
+        return users.filter { (_, navidromeId, username) ->
+            admins.any { it.id == navidromeId || (navidromeId == null && it.userName.equals(username, true)) }
+        }.map { it.first }
+    }
+
     suspend fun report(user: UserDto, timeZone: String?): StatsDto {
         if (!isAdmin(user)) throw ApiError(HttpStatusCode.Forbidden, "Only admins can see listening stats")
         val snapshot = snapshot() ?: throw ApiError(HttpStatusCode.ServiceUnavailable, "The server can't read Navidrome's database")

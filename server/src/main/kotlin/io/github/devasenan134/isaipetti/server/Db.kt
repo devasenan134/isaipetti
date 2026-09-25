@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -194,6 +194,29 @@ class Db(path: String) {
 
         // @mentions: the ids of the people a message mentions, like "3,7" (null for none).
         val SCHEMA_V16 = "ALTER TABLE messages ADD COLUMN mentions TEXT"
+
+        // Requests for music that isn't in the library: one row per song or movie (match_key is the
+        // same however the catalog spells it), and who asked. status is "open", "done" or "declined".
+        val SCHEMA_V17 = """
+            CREATE TABLE music_requests (
+                id INTEGER PRIMARY KEY,
+                match_key TEXT NOT NULL UNIQUE,
+                catalog_id TEXT NOT NULL,
+                item_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                note TEXT,
+                album_id TEXT,
+                song_id TEXT,
+                created_at INTEGER NOT NULL,
+                closed_at INTEGER
+            );
+            CREATE TABLE music_request_askers (
+                request_id INTEGER NOT NULL REFERENCES music_requests(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                asked_at INTEGER NOT NULL,
+                PRIMARY KEY (request_id, user_id)
+            )
+        """.trimIndent()
 
         // Mixes by Isai Pettai: what the app played (with skips), mixes saved to Your Library,
         // and when each mix's songs last changed.
