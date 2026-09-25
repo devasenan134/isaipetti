@@ -7,6 +7,17 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.10.2 (2026-09-25): Lyrics on the lock screen
+
+App only. No server changes.
+
+### New
+- **Lyrics on the lock screen.** Turn it on in Settings → Lock screen. Then, when you lock your phone while music plays, turning the screen on shows the time, a small player (cover, title, artist, previous / play-pause / next) and the synced lyrics, on the song's colours. The page is slightly see-through, so your lock screen shows faintly behind. The phone stays locked: swipe up (or press Back) for the normal lock screen, and unlocking closes it. In someone else's jam, the controls are off, like in the player.
+- **Keep the screen on** while the lyrics show and the music plays (a second switch, on by default). When the music is paused, the screen goes off as usual.
+- Android shows a screen over the lock screen only for apps allowed to use "full-screen notifications". If yours doesn't allow it (Android 14 can turn it off), Settings says so and has a button to the right page in Android's settings.
+
+---
+
 ## 0.10.1 (2026-09-25): @mentions, and reactions your way
 
 ### New
