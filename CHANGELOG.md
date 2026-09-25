@@ -7,7 +7,7 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
-## 0.10.2 (2026-09-25): Lyrics on the lock screen
+## 0.11.1 (2026-09-25): Lyrics on the lock screen
 
 App only. No server changes.
 
@@ -15,6 +15,22 @@ App only. No server changes.
 - **Lyrics on the lock screen.** Turn it on in Settings → Lock screen. Then, when you lock your phone while music plays, turning the screen on shows the time, a small player (cover, title, artist, previous / play-pause / next) and the synced lyrics, on the song's colours. The page is slightly see-through, so your lock screen shows faintly behind. The phone stays locked: swipe up (or press Back) for the normal lock screen, and unlocking closes it. In someone else's jam, the controls are off, like in the player.
 - **Keep the screen on** while the lyrics show and the music plays (a second switch, on by default). When the music is paused, the screen goes off as usual.
 - Android shows a screen over the lock screen only for apps allowed to use "full-screen notifications". If yours doesn't allow it (Android 14 can turn it off), Settings says so and has a button to the right page in Android's settings.
+
+---
+
+## 0.11.0 (2026-09-25): Request songs and movies that aren't in the library
+
+### New
+- **Search finds music that isn't in the library.** After your results, a **Not in the library** section shows matching movies and songs from the iTunes catalog (Indian store), with cover, movie, year and artists. Songs and movies you already have are left out, whatever the spelling, and so are covers, karaoke and "slowed" versions.
+- **Request button.** Tap **Request** on a song or a whole movie. It shows **Requested ✓**; tap that to take it back. If a friend already asked, you'll see "Asked for by …", and your request joins theirs.
+- **Your requests.** Search (before you type) has **Your requests**: what you asked for, whether it's waiting, in the library (tap to open the movie) or couldn't be found (with the reason).
+- **Notifications.** When your request is added you get "It's in the library"; tapping it opens the movie. If it can't be found, you're told that too. A new "Song and movie requests" notification channel can be muted on its own.
+- **For admins:** you get a notification for each new request. **Your requests** has an **Everyone's** tab with **Added** (checks that the music is really in the library, then tells everyone who asked) and **Can't find** (with an optional reason).
+
+### Server
+- `GET /search/catalog?q=` (iTunes Search API; answers kept 6 hours, at most 16 catalog calls a minute), `GET/POST /requests`, `DELETE /requests/{id}`, and for Navidrome admins `GET /admin/requests`, `POST /admin/requests/{id}/done` and `POST /admin/requests/{id}/decline`. Up to 20 waiting requests per person.
+- Push types `musicRequest` (admins), `musicReady` (with `albumId`) and `musicDeclined`.
+- Database schema 17 (`music_requests`, `music_request_askers`), so back up the DB before deploying. The server now calls itunes.apple.com.
 
 ---
 
