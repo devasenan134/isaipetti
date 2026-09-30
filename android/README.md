@@ -44,7 +44,7 @@ Then `./gradlew assembleRelease` builds `app/build/outputs/apk/release/app-relea
 
 ### If you publish your own version
 
-- Change `applicationId` in `app/build.gradle.kts` so it doesn't clash with this app, and register that id in your Firebase project (see `../server/README.md`).
+- Change `applicationId` in `app/build.gradle.kts` so it doesn't clash with this app, and register that id and your key's SHA-1 in your Firebase project (see [SELF_HOSTING.md, step 6](../SELF_HOSTING.md#6-push-notifications-optional)).
 - Set `ISAIPETTI_GITHUB_REPO=owner/repo` in `~/.gradle/gradle.properties` so the update check looks at your Releases.
 
 ## Where things are

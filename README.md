@@ -11,12 +11,12 @@ A music app for your own music, shared with your friends. Isaipetti streams from
 
 ## The three parts
 
-| | Part | What it is | Guide |
+| | Part | What it is | Folder |
 |---|---|---|---|
-| 1 | **Navidrome** | The music server: your library, streaming, lyrics, accounts | [navidrome/](navidrome/README.md) |
-| 2 | **isaipetti-social** | The friends server: invites, friends, chat, listen together, notifications, mixes | [server/](server/README.md) |
-| 2b | **Audio analyzer** (optional) | Listens to every song once so mixes know moods and sound-alikes | [analyzer/](analyzer/README.md) |
-| 3 | **Android app** | What you and your friends install | [android/](android/README.md) |
+| 1 | **Navidrome** | The music server: your library, streaming, lyrics, accounts | [navidrome/](navidrome/) |
+| 2 | **isaipetti-social** | The friends server: invites, friends, chat, listen together, notifications, mixes | [server/](server/) |
+| 2b | **Audio analyzer** (optional) | Listens to every song once so mixes know moods and sound-alikes | [analyzer/](analyzer/) |
+| 3 | **Android app** | What you and your friends install | [android/](android/) |
 
 ```
 Isaipetti app ── music, lyrics, playlists ──▶ Navidrome            (Part 1)
@@ -28,6 +28,10 @@ Isaipetti app ── music, lyrics, playlists ──▶ Navidrome            (Pa
 ```
 
 Run Part 1 (and optionally Part 2) on a machine at home with Docker, give each an HTTPS address, and send those addresses to friends. They install the app (Part 3) and type them in at login. Nothing about your servers is built into the app or stored in this repository.
+
+## Host it yourself
+
+A few Docker containers on a computer at home, plus two HTTPS addresses. See **[SELF_HOSTING.md](SELF_HOSTING.md)** for the whole setup, step by step: Navidrome, the friends server, HTTPS, inviting friends, and the optional notifications, mixes and mood analysis.
 
 ## Just want to install the app?
 

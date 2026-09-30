@@ -10,31 +10,9 @@ The analyzer adds what the tags can't say: **how songs sound**. It listens to ev
 
 It only **reads** the music and Navidrome's database. It writes just its own `features.db`, which the friends server reads.
 
-## What you need
+## Setting it up
 
-- Navidrome (Part 1) and the friends server (Part 2) on the same machine
-- Docker; about 3 GB of free memory while it runs and 2 GB of disk for the model
-- Time for the first run: roughly 1.5 seconds per song on 4 cores (an Apple M1: about 80 minutes for 3,000 songs). After that, only new or changed songs are analyzed, a few minutes after Navidrome's scan finds them.
-
-## Run it
-
-```bash
-cd analyzer
-cp .env.example .env
-nano .env                  # Navidrome's data folder, your music folder, PUID/PGID
-mkdir -p data
-docker compose up -d --build
-docker logs -f isaipetti-analyzer    # "Analyzing 3061 new or changed songs", then progress every 20 songs
-```
-
-Then tell the friends server where both folders are, in `server/.env`:
-
-```bash
-NAVIDROME_DATA=/path/to/navidrome/data
-FEATURES_FOLDER=/path/to/isaipetti/analyzer/data
-```
-
-and restart it (`docker compose up -d` in `server/`). Its log line ends with `mixes on`. Mood mixes appear once a quarter of the library is analyzed; everything else works right away.
+Follow [SELF_HOSTING.md, step 7](../SELF_HOSTING.md#mood-mixes-with-the-audio-analyzer). It needs about 3 GB of free memory while it runs and 2 GB of disk for the model. The first run takes roughly 1.5 seconds per song on 4 cores; after that, only new or changed songs are analyzed.
 
 ## Trying it out first
 
