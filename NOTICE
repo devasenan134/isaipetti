@@ -1,0 +1,8 @@
+Isaipetti
+Copyright 2026 Devadas (devasenan134)
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Bundled third-party files keep their own licenses (see licenses/):
+- Bricolage Grotesque and Catamaran fonts: SIL Open Font License 1.1
+- Common-password list (common-passwords.txt) from SecLists: MIT License
