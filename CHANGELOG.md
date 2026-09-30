@@ -7,6 +7,13 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## Unreleased
+
+### Improved
+- The project is now licensed under the Apache License 2.0 (it was GPL-3.0), with a NOTICE file. Releases up to 0.11.1 stay under GPL-3.0.
+
+---
+
 ## 0.11.1 (2026-09-25): Lyrics on the lock screen
 
 App only. No server changes.

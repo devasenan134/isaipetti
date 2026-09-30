@@ -40,7 +40,7 @@ Download the latest APK from [Releases](../../releases), then enter the music se
 
 ## License
 
-Isaipetti is free software under the [GNU General Public License v3.0](LICENSE). You can use, study, change and share it; if you share a changed version, it must stay under the same license with its source available.
+Isaipetti is licensed under the [Apache License 2.0](LICENSE). You can use, change and share it, including in your own projects, as long as you keep the license and the [NOTICE](NOTICE) file and say which files you changed.
 
 Bundled third-party files keep their own licenses:
 
