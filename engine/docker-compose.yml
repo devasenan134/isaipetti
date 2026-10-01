@@ -21,3 +21,11 @@ services:
       - "127.0.0.1:8097:8097"                 # only the home server itself (and the social server) can reach it
     mem_limit: 1g                             # the Mac mini has 8 GB; the analyzer and Navidrome come first
     restart: unless-stopped
+    networks: [social]
+
+# The social server's network: it reaches the engine as http://isaipetti-engine:8097 (and the home server
+# has no address ranges left for another network).
+networks:
+  social:
+    name: gamertags_default
+    external: true
