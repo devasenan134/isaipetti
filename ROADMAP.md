@@ -176,7 +176,7 @@ Short summary. The full patch notes are in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Area | Priority | Target | Status | Notes |
 |---|---|---|---|---|---|
-| _nothing right now_ | | | | | |
+| Recommendation and playlist engine | Engine (new, Python) + Server | P1 | phases 0–5 | In progress (phase 0) | Mixes built from sound, lyrics mood, listened-together and each person's taste, learning from skips. Plan in [engine/README.md](engine/README.md). Phase 0: the server records every suggestion (schema 18); engine skeleton and evaluation harness |
 
 ---
 

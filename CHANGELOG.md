@@ -12,6 +12,10 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 ### Improved
 - The project is now licensed under the Apache License 2.0 (it was GPL-3.0), with a NOTICE file. Releases up to 0.11.1 stay under GPL-3.0.
 
+### Server
+- **Every suggestion is written down** (database schema 18): each list of songs a mix, a station batch or "more like this" hands out, with each song's place in it. Opening the same unchanged mix again the same day isn't counted twice. Together with plays this says which suggestions were played, skipped or never reached, for the new recommendation engine to learn from. Nothing changes in the app.
+- **New: the recommendation engine** (`engine/`, Python + FastAPI), phase 0: its database, a job that loads songs, lyrics and JioSaavn's listened-together lists, training examples from suggestions and plays, and an evaluation harness with two baselines. It doesn't serve mixes yet.
+
 ---
 
 ## 0.11.1 (2026-09-25): Lyrics on the lock screen
