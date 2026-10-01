@@ -42,7 +42,7 @@ class Db(path: String) {
 
     private fun migrate() {
         val version = connection.createStatement().use { it.executeQuery("PRAGMA user_version").run { next(); getInt(1) } }
-        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17)
+        val migrations = listOf(SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18)
         migrations.drop(version).forEachIndexed { i, sql ->
             connection.createStatement().use { st -> sql.split(";").filter { it.isNotBlank() }.forEach(st::execute) }
             connection.createStatement().use { it.execute("PRAGMA user_version = ${version + i + 1}") }
@@ -215,6 +215,29 @@ class Db(path: String) {
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 asked_at INTEGER NOT NULL,
                 PRIMARY KEY (request_id, user_id)
+            )
+        """.trimIndent()
+
+        // What Isai Pettai suggested: every list of songs a mix, a station batch or "more like this" handed
+        // out, and each song's place in it (first_position: a station batch continues after what was
+        // played). Joined with plays, whose source names the mix, it says which suggestions were played,
+        // skipped or never reached. The recommendation engine learns from it.
+        val SCHEMA_V18 = """
+            CREATE TABLE suggestion_lists (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                mix_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                songs_hash INTEGER NOT NULL,
+                first_position INTEGER NOT NULL,
+                served_at INTEGER NOT NULL
+            );
+            CREATE INDEX suggestion_lists_by_user ON suggestion_lists(user_id, mix_id, served_at);
+            CREATE TABLE suggestions (
+                list_id INTEGER NOT NULL REFERENCES suggestion_lists(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL,
+                song_id TEXT NOT NULL,
+                PRIMARY KEY (list_id, position)
             )
         """.trimIndent()
 

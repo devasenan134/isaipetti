@@ -282,6 +282,31 @@ class MixApiTest {
         val skipped = daily.songs.first().id
         val plays = PlaysRequest(List(3) { PlayEvent(skipped, now, playedMs = 5_000, durationMs = 240_000, skipped = true) })
         assertEquals(HttpStatusCode.NoContent, client.post("/plays") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(plays) }.status)
+
+        // Every list of songs handed out is written down with each song's place in it. Opening the same
+        // mix again with the same songs isn't a new suggestion; a station batch continues its numbering.
+        client.get("/mixes/daily-1") { bearerAuth(token) }
+        client.post("/mixes/radio") {
+            bearerAuth(token); contentType(ContentType.Application.Json)
+            setBody(RadioRequest("radio-song-song3", exclude = station.songs.map { it.id }, count = 5))
+        }
+        java.sql.DriverManager.getConnection("jdbc:sqlite:$db").use { c ->
+            fun lists(mixId: String) = c.query("SELECT kind, first_position FROM suggestion_lists WHERE mix_id = ? ORDER BY id", mixId) {
+                it.getString(1) to it.getInt(2)
+            }
+            assertEquals(listOf("mix" to 0), lists("daily-1"))
+            assertEquals(listOf("radio" to 0, "radio" to 10), lists("radio-song-song3"))
+            assertEquals(listOf("recommend" to 0), lists("recommend"))
+            assertEquals(listOf("mix" to 0), lists(homeStation.id))
+            val dailySongs = c.query(
+                "SELECT s.song_id FROM suggestions s JOIN suggestion_lists l ON l.id = s.list_id WHERE l.mix_id = 'daily-1' ORDER BY s.position",
+            ) { it.getString(1) }
+            assertEquals(daily.songs.map { it.id }, dailySongs)
+            val second = c.query(
+                "SELECT s.position FROM suggestions s JOIN suggestion_lists l ON l.id = s.list_id WHERE l.first_position = 10 ORDER BY s.position",
+            ) { it.getInt(1) }
+            assertEquals((10 until 15).toList(), second)
+        }
     }
 }
 

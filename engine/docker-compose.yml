@@ -1,0 +1,31 @@
+# Isai Pettai's engine on the home server. Paths come from .env (see .env.example).
+services:
+  isaipetti-engine:
+    build: .
+    container_name: isaipetti-engine
+    env_file: .env
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - ENGINE_DB=/data/engine.db
+      - NAVIDROME_DB=/navidrome/navidrome.db
+      - SOCIAL_DB=/social/isaipetti-social.db
+      - FEATURES_DB=/features/features.db
+      - SIGNALS_DIR=/signals
+    volumes:
+      - ./data:/data                          # engine.db (ours)
+      - ${NAVIDROME_DATA}:/navidrome:ro       # songs and users
+      - ${SOCIAL_DATA}:/social:ro             # plays and suggestions
+      - ${FEATURES_DATA}:/features:ro         # the analyzer's sound features
+      - ${SIGNALS}:/signals:ro                # songs.csv, lyrics, listened-together
+    ports:
+      - "127.0.0.1:8097:8097"                 # only the home server itself (and the social server) can reach it
+    mem_limit: 1g                             # the Mac mini has 8 GB; the analyzer and Navidrome come first
+    restart: unless-stopped
+    networks: [social]
+
+# The social server's network: it reaches the engine as http://isaipetti-engine:8097 (and the home server
+# has no address ranges left for another network).
+networks:
+  social:
+    name: gamertags_default
+    external: true
