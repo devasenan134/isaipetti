@@ -57,17 +57,56 @@ class MixService(
         val b = build(user)
         // Stations on Home are only a name and a cover; their songs are picked when they're opened.
         val mix = b.home.asSequence().flatMap { it.mixes }.firstOrNull { it.id == id && !it.endless } ?: b.maker.byId(id)
+        mix?.let { suggested(user, id, "mix", it.songs, 0) }
         return mix ?: followedCopy(user.id, id) ?: throw ApiError(HttpStatusCode.NotFound, "This mix isn't available right now")
     }
 
     suspend fun radio(user: UserDto, request: RadioRequest): MixDto {
         val count = request.count.coerceIn(1, 50)
-        return build(user).maker.radio(request.id, request.exclude.take(1000).toSet(), count, Random(clock()))
+        val exclude = request.exclude.take(1000).toSet()
+        val mix = build(user).maker.radio(request.id, exclude, count, Random(clock()))
             ?: throw ApiError(HttpStatusCode.NotFound, "This station isn't available")
+        // This batch follows the songs the station already played.
+        suggested(user, request.id, "radio", mix.songs, exclude.size)
+        return mix
     }
 
-    suspend fun recommend(user: UserDto, request: RecommendRequest): List<MixSong> =
-        build(user).maker.recommend(request.songIds.take(2000), request.count.coerceIn(1, 50), request.page.coerceIn(0, 20))
+    suspend fun recommend(user: UserDto, request: RecommendRequest): List<MixSong> {
+        val count = request.count.coerceIn(1, 50)
+        val page = request.page.coerceIn(0, 20)
+        return build(user).maker.recommend(request.songIds.take(2000), count, page)
+            .also { suggested(user, "recommend", "recommend", it, count * page) }
+    }
+
+    // ---------- what was suggested ----------
+
+    /**
+     * Writes down a list of songs handed to [user] (see suggestion_lists). Opening the same mix again
+     * with the same songs within a day isn't a new suggestion. Never fails the request it belongs to.
+     */
+    private suspend fun suggested(user: UserDto, mixId: String, kind: String, songs: List<MixSong>, firstPosition: Int) {
+        if (songs.isEmpty()) return
+        val t = clock()
+        val hash = songs.map { it.id }.hashCode()
+        runCatching {
+            db.tx {
+                val last = queryOne(
+                    "SELECT songs_hash, served_at FROM suggestion_lists WHERE user_id = ? AND mix_id = ? AND kind = ? ORDER BY served_at DESC LIMIT 1",
+                    user.id, mixId, kind,
+                ) { it.getInt(1) to it.getLong(2) }
+                if (last != null && last.first == hash && t - last.second < MixMaker.DAY) return@tx
+                val list = insert(
+                    "INSERT INTO suggestion_lists (user_id, mix_id, kind, songs_hash, first_position, served_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    user.id, mixId.take(100), kind, hash, firstPosition, t,
+                )
+                songs.forEachIndexed { i, s ->
+                    update("INSERT INTO suggestions (list_id, position, song_id) VALUES (?, ?, ?)", list, firstPosition + i, s.id)
+                }
+                // A year of suggestions is plenty, like plays.
+                update("DELETE FROM suggestion_lists WHERE user_id = ? AND served_at < ?", user.id, t - 365 * MixMaker.DAY)
+            }
+        }
+    }
 
     // ---------- following mixes into Your Library ----------
 
