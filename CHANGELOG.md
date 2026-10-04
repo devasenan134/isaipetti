@@ -18,6 +18,19 @@ Notes are grouped into **New**, **Improved**, **Fixed** and **Server**. Plans an
 
 ---
 
+## 0.12.0 (2026-10-04): Jukebox, no server address to type
+
+App only. The server is now Jukebox, at jukebox.craftingtable.cc.
+
+### Improved
+- **Logging in and signing up need no server address.** The app connects to jukebox.craftingtable.cc, which
+  serves music and friends at one address. You type just your username and password (and the invite code
+  when signing up).
+- **Running your own server?** Open **Additional settings** under the login button and type its address. A
+  separate friends server can still be given there, for the older two-server setup.
+
+---
+
 ## 0.11.1 (2026-09-25): Lyrics on the lock screen
 
 App only. No server changes.
