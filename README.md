@@ -1,5 +1,12 @@
 # Isaipetti (இசைப்பெட்டி)
 
+> [!IMPORTANT]
+> **This repository has moved to [Jukebox](https://github.com/devasenan134/jukebox).**
+>
+> The server has been completely redesigned and replaced by **Jukebox**, which combines catalog management, streaming, accounts, and social features into a single self-hosted server without Navidrome. The Android app, web app, and server development now all take place in the [jukebox repository](https://github.com/devasenan134/jukebox). New releases, bug fixes, and issues are maintained there.
+>
+> This repository is archived for historical reference.
+
 A music app for your own music, shared with your friends. Isaipetti streams from a [Navidrome](https://www.navidrome.org/) server you run at home, and adds a friends layer: see what friends are playing, chat, share songs (or just a part of one), and listen together in sync.
 
 - **Player:** home rows, movies (albums), composers, search, background playback, queue, synced lyrics, swipe between songs, scrobbling
